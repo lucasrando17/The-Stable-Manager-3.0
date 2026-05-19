@@ -1,32 +1,33 @@
-THE STABLE MANAGER - FINAL CLEAN REBUILD
+STATIC DEPLOYMENT PACKAGE - NO NPM INSTALL
+
+This package is already built. It contains only static files.
 
 Upload the CONTENTS of this folder to GitHub.
 
-Your GitHub repo root should contain:
-api/
-public/
-src/
+Your GitHub repo root should look like:
+assets/
+config.js
 index.html
-package.json
-package-lock.json
-vite.config.js
 vercel.json
-README.md
-RUN_THIS_SQL_FIRST.sql
+UPLOAD_INSTRUCTIONS_FIRST.txt
 
-Do NOT upload this outer folder itself.
+There should be NO package.json.
+There should be NO package-lock.json.
+There should be NO src folder.
+There should be NO api folder.
+
+After upload:
+1. Open config.js in GitHub.
+2. Replace:
+   PASTE_YOUR_SUPABASE_PROJECT_URL_HERE
+   PASTE_YOUR_SUPABASE_ANON_PUBLIC_KEY_HERE
+3. Commit the change.
 
 Vercel settings:
-Framework Preset: Vite
+Framework Preset: Other
+Build Command: leave blank
+Install Command: leave blank
+Output Directory: leave blank or ./
 Root Directory: ./
-Install Command: npm install
-Build Command: npm run build
-Output Directory: dist
 
-Environment variables required:
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
-
-Optional:
-RESEND_API_KEY
-INVOICE_FROM_EMAIL
+This avoids Vercel npm install completely.
