@@ -1,4 +1,4 @@
-
+// PATCH ACTIVE 2026
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
