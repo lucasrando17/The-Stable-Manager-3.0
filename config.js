@@ -2,6 +2,6 @@
 // Replace the two values below in GitHub after upload.
 
 window.STABLE_MANAGER_CONFIG = {
-  SUPABASE_URL: "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE",
-  SUPABASE_ANON_KEY: "PASTE_YOUR_SUPABASE_ANON_PUBLIC_KEY_HERE"
+  SUPABASE_URL: "https://lnzqejouautpdbgaqqiz.supabase.co/rest/v1/",
+  SUPABASE_ANON_KEY: "sb_publishable_SsDDKUZo1g1C0RtBHR9dfw_cd6T1bMk"
 };
