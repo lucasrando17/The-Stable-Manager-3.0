@@ -541,7 +541,7 @@ function GenericTable({ stableId, config, setToast }) {
   useEffect(() => {
     if (!stableId) return;
     load();
-    supabase.from("horses").select("name").eq("stable_id", stableId).order("name").then(({ data }) => setHorses(data || []));
+    supabase.from("horses").select("name,stable_name").eq("stable_id", stableId).order("name").then(({ data }) => setHorses(data || []));
     supabase.from("owners").select("name,email,phone").eq("stable_id", stableId).order("name").then(({ data }) => setOwners(data || []));
   }, [stableId, config.table]);
 
@@ -557,7 +557,7 @@ function GenericTable({ stableId, config, setToast }) {
       if (type === "date") out[key] = new Date().toISOString().slice(0, 10);
       else if (type === "number") out[key] = "";
       else if (type === "select") out[key] = options[0];
-      else if (type === "horseName") out[key] = horses[0]?.name || "";
+      else if (type === "horseName") out[key] = horseDisplayName(horses[0]) || "";
       else if (type === "ownerName") out[key] = owners[0]?.name || "";
       else out[key] = "";
     });
@@ -1414,6 +1414,13 @@ function formatDate(value) {
 
 function splitLines(value) {
   return String(value || "").split(/\n|,/).map(item => item.trim()).filter(Boolean);
+}
+
+
+function horseDisplayName(horse) {
+  if (!horse) return "";
+  if (typeof horse === "string") return horse;
+  return horse.name || horse.stable_name || "";
 }
 
 function labelize(value) {

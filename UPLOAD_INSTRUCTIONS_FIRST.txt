@@ -1,15 +1,11 @@
-HORSE SIRE / MARE PATCH
+HORSE STABLE NAME FALLBACK PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Add sire and mare to horse records
+Use stable name as horse fallback
 
-Also run this SQL in Supabase SQL Editor:
-RUN_THIS_SQL_ADD_SIRE_MARE.sql
-
-This patch adds:
-- Sire field when adding/editing horses
-- Mare field when adding/editing horses
-- Sire and Mare visible in horse cards/details
-- Sire and Mare visible in owner horse details
+This patch changes horse selection dropdowns:
+- Work, vet/treatments, farrier, feed, gear, race records, invoices and updates now show the horse's Registered Name if entered.
+- If Registered Name is blank, they show/use Stable Name instead.
+- This allows young/unregistered horses to still be selectable throughout the app.
