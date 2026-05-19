@@ -141,3 +141,5 @@ button{cursor:pointer}
   .invoice-print{box-shadow:none;border-radius:0;margin:0;max-width:none}
   .nav,.topbar{display:none}
 }
+
+.show-more{margin-top:8px}.show-more-card{display:grid;place-items:center}

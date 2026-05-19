@@ -83,6 +83,7 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [stable, setStable] = useState(null);
   const [entry, setEntry] = useState("landing");
+  const [loginMode, setLoginMode] = useState("stable");
   const [tab, setTab] = useState("dashboard");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
@@ -117,12 +118,12 @@ function App() {
     }
     setProfile(data);
     setStable(data.stables);
-    setTab(data.role === "owner" ? "ownerHome" : "dashboard");
+    setTab(data.role === "owner" || loginMode === "owner" ? "ownerHome" : "dashboard");
   }
 
   if (loading) return <div className="center">Loading...</div>;
-  if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} />;
-  if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} />;
+  if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
+  if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "invite") return <InviteSignup onBack={() => setEntry("landing")} setToast={setToast} />;
   if (!session) return <Landing setEntry={setEntry} />;
 
@@ -139,7 +140,7 @@ function App() {
       </div>
       <button className="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18}/>Logout</button>
     </header>
-    {profile.role === "owner"
+    {profile.role === "owner" || loginMode === "owner"
       ? <OwnerApp profile={profile} tab={tab} setTab={setTab} />
       : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />}
   </div>;
@@ -180,13 +181,14 @@ function PhotoReel() {
   return <div className="photo-reel" style={{ backgroundImage: `url(${photos[index]})` }} />;
 }
 
-function Login({ mode, onBack }) {
+function Login({ mode, onBack, setLoginMode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   async function submit(event) {
     event.preventDefault();
+    setLoginMode(mode);
     setMessage("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setMessage(error.message);
@@ -216,6 +218,7 @@ function InviteSignup({ onBack, setToast }) {
 
   async function submit(event) {
     event.preventDefault();
+    setLoginMode(mode);
     const { data: invite, error: inviteError } = await supabase.from("invite_codes").select("*").eq("code", code.trim()).is("used_by", null).single();
     if (inviteError || !invite) {
       setToast("Invalid or used invite code.");
@@ -392,7 +395,7 @@ function GenericTable({ stableId, config, setToast }) {
     </section>
     {calendar && config.calendarField && <PhoneCalendar rows={rows} dateField={config.calendarField} selectedDate={selectedDate} setSelectedDate={setSelectedDate} title={config.title} />}
     <section className="grid">
-      {shown.map(row => <article className="record clickable" key={row.id} onClick={() => config.profile === "horse" ? setModal({ mode: "horseProfile", record: row }) : config.profile === "owner" ? setModal({ mode: "ownerProfile", record: row }) : null}>
+      <CollapsibleRecords rows={shown} threshold={config.table === "work_entries" ? 12 : 999999} render={row => <article className="record clickable" key={row.id} onClick={() => config.profile === "horse" ? setModal({ mode: "horseProfile", record: row }) : config.profile === "owner" ? setModal({ mode: "ownerProfile", record: row }) : null}>
         <div className="record-head">
           <div><h3>{row.name || row.horse_name || row.item_name || row.full_name || row.date || row.entry_date || "Record"}</h3><p>{row.status || row.category || row.role || ""}</p></div>
           <div className="button-row" onClick={e => e.stopPropagation()}>
@@ -401,7 +404,7 @@ function GenericTable({ stableId, config, setToast }) {
           </div>
         </div>
         <div className="details">{config.display.map(key => <div key={key}><span>{labelize(key)}</span><strong>{formatValue(row[key])}</strong></div>)}</div>
-      </article>)}
+      </article>} />
     </section>
     {modal?.mode === "horseProfile" && <HorseProfile horse={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
     {modal?.mode === "ownerProfile" && <OwnerProfile owner={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
@@ -416,7 +419,10 @@ async function afterSave(config, record, stableId) {
   if (config.table === "finance_entries" && record.entry_type === "Expense" && record.bill_to_owners === "Yes") {
     await createOwnerInvoices(stableId, record.horse_name, Number(record.amount), record.category || "Expense", config.table, record.id);
   }
-  if (config.table === "updates") await distributeUpdate(stableId, record);
+  if (config.table === "updates") {
+    await distributeUpdate(stableId, record);
+    await supabase.from("updates").update({ send_status: "Sent", visibility: record.visibility === "internal" ? "internal" : "owners", sent_at: new Date().toISOString() }).eq("id", record.id).eq("stable_id", stableId);
+  }
 }
 
 async function createOwnerInvoices(stableId, horseName, amount, category, sourceType, sourceId) {
@@ -512,6 +518,7 @@ function Analytics({ stableId }) {
 function Invoices({ stableId, setToast }) {
   const [rows, setRows] = useState([]);
   const [horses, setHorses] = useState([]);
+  const [owners, setOwners] = useState([]);
   const [modal, setModal] = useState(null);
   const [shareModal, setShareModal] = useState(null);
   const [printInvoice, setPrintInvoice] = useState(null);
@@ -524,6 +531,8 @@ function Invoices({ stableId, setToast }) {
     setRows(data || []);
     const horseResult = await supabase.from("horses").select("name").eq("stable_id", stableId).order("name");
     setHorses(horseResult.data || []);
+    const ownerResult = await supabase.from("owners").select("name,email,phone").eq("stable_id", stableId).order("name");
+    setOwners(ownerResult.data || []);
   }
 
   function blank() {
@@ -584,17 +593,27 @@ function Invoices({ stableId, setToast }) {
         </article>;
       })}
     </section>
-    {modal && <InvoiceModal modal={modal} horses={horses} onClose={() => setModal(null)} onSave={save} />}
+    {modal && <InvoiceModal modal={modal} horses={horses} owners={owners} onClose={() => setModal(null)} onSave={save} />}
     {shareModal && <ShareInvoice invoice={shareModal} onClose={() => setShareModal(null)} setToast={setToast} />}
     {printInvoice && <InvoicePrint invoice={printInvoice} onClose={() => setPrintInvoice(null)} />}
   </main>;
 }
 
-function InvoiceModal({ modal, horses, onClose, onSave }) {
+function InvoiceModal({ modal, horses, owners, onClose, onSave }) {
   const [invoice, setInvoice] = useState(modal.invoice);
   const totals = invoiceTotals(invoice);
 
   function setField(key, value) {
+    if (key === "client_name") {
+      const owner = owners.find(item => item.name === value);
+      setInvoice(current => ({
+        ...current,
+        client_name: value,
+        client_email: owner?.email || current.client_email || "",
+        client_phone: owner?.phone || current.client_phone || ""
+      }));
+      return;
+    }
     setInvoice(current => ({ ...current, [key]: value }));
   }
 
@@ -615,7 +634,7 @@ function InvoiceModal({ modal, horses, onClose, onSave }) {
       <div className="modal-head"><h2>{modal.mode === "edit" ? "Edit" : "Create"} Invoice</h2><button onClick={onClose}><X size={20}/></button></div>
       <div className="form-grid">
         <Field label="Invoice Number"><input value={invoice.invoice_number || ""} onChange={e => setField("invoice_number", e.target.value)} /></Field>
-        <Field label="Client Name"><input value={invoice.client_name || ""} onChange={e => setField("client_name", e.target.value)} /></Field>
+        <Field label="Owner / Client"><select value={invoice.client_name || ""} onChange={e => setField("client_name", e.target.value)}><option value="">Select owner...</option>{owners.map(owner => <option key={owner.name} value={owner.name}>{owner.name}</option>)}</select></Field>
         <Field label="Client Email"><input value={invoice.client_email || ""} onChange={e => setField("client_email", e.target.value)} /></Field>
         <Field label="Client Phone"><input value={invoice.client_phone || ""} onChange={e => setField("client_phone", e.target.value)} /></Field>
         <Field label="Horse"><select value={invoice.horse_name || ""} onChange={e => setField("horse_name", e.target.value)}>{horses.map(horse => <option key={horse.name}>{horse.name}</option>)}</select></Field>
@@ -735,7 +754,7 @@ function HorseProfile({ horse, stableId, onClose }) {
       <ProfileSection title="Owners">
         {data.owners.map(row => <div className="profile-row" key={row.id}><span>{row.owner_name}</span><strong>{row.percentage}%</strong><button className="delete small" onClick={() => deleteShare(row.id)}><Trash2 size={14}/></button></div>)}
       </ProfileSection>
-      <ProfileSection title="Work">{data.work.map(row => <SimpleRow key={row.id} left={`${row.date} · ${row.sector}`} right={row.mile_rate || row.overall_time || ""} />)}</ProfileSection>
+      <ProfileSection title="Work"><CollapsibleList rows={data.work} threshold={8} render={row => <SimpleRow key={row.id} left={`${row.date} · ${row.sector}`} right={`Overall: ${row.overall_time || "-"} · Mile: ${row.mile_rate || "-"}`} />} /></ProfileSection>
       <ProfileSection title="Races">{data.races.map(row => <SimpleRow key={row.id} left={`${row.date} · ${row.track} · ${row.status}`} right={row.result || `$${row.prizemoney || 0}`} />)}</ProfileSection>
       <ProfileSection title="Vet">{data.vet.map(row => <SimpleRow key={row.id} left={`${row.treatment_date} · ${row.treatment_type}`} right={`$${row.bill_amount || 0}`} />)}</ProfileSection>
       <ProfileSection title="Farrier">{data.farrier.map(row => <SimpleRow key={row.id} left={`${row.farrier_date} · ${row.service_type}`} right={`$${row.bill_amount || 0}`} />)}</ProfileSection>
@@ -790,12 +809,12 @@ function useOwnerData(profile) {
   useEffect(() => { if (profile?.stable_id) load(); }, [profile?.stable_id, profile?.owner_name]);
 
   async function load() {
-    const { data: shares } = await supabase.from("horse_owners").select("*").eq("stable_id", profile.stable_id).eq("owner_name", profile.owner_name);
+    const { data: shares } = await supabase.from("horse_owners").select("*").eq("stable_id", profile.stable_id).eq("owner_name", profile.owner_name || profile.full_name);
     const horseNames = (shares || []).map(row => row.horse_name);
     const [horses, updates, invoices, races, work, vet, farrier] = await Promise.all([
       horseNames.length ? supabase.from("horses").select("*").eq("stable_id", profile.stable_id).in("name", horseNames) : { data: [] },
       horseNames.length ? supabase.from("updates").select("*").eq("stable_id", profile.stable_id).in("horse_name", horseNames).in("visibility", ["owners", "public-preview"]).order("created_at", { ascending: false }) : { data: [] },
-      supabase.from("invoices").select("*").eq("stable_id", profile.stable_id).eq("client_name", profile.owner_name),
+      supabase.from("invoices").select("*").eq("stable_id", profile.stable_id).eq("client_name", profile.owner_name || profile.full_name),
       horseNames.length ? supabase.from("race_records").select("*").eq("stable_id", profile.stable_id).in("horse_name", horseNames) : { data: [] },
       horseNames.length ? supabase.from("work_entries").select("*").eq("stable_id", profile.stable_id).in("horse_name", horseNames) : { data: [] },
       horseNames.length ? supabase.from("treatments").select("*").eq("stable_id", profile.stable_id).in("horse_name", horseNames) : { data: [] },
@@ -921,6 +940,33 @@ function SimpleRow({ left, right }) {
 
 function ProfileSection({ title, children }) {
   return <section className="profile-section"><h3>{title}</h3>{children}</section>;
+}
+
+
+function CollapsibleList({ rows, threshold = 8, render }) {
+  const [expanded, setExpanded] = useState(false);
+  const safeRows = rows || [];
+  const visible = expanded ? safeRows : safeRows.slice(0, threshold);
+  return <>
+    {visible.map(render)}
+    {safeRows.length > threshold && <button className="text show-more" onClick={() => setExpanded(!expanded)}>
+      {expanded ? "Show less" : `Show all ${safeRows.length}`}
+    </button>}
+  </>;
+}
+
+function CollapsibleRecords({ rows, threshold = 12, render }) {
+  const [expanded, setExpanded] = useState(false);
+  const safeRows = rows || [];
+  const visible = expanded ? safeRows : safeRows.slice(0, threshold);
+  return <>
+    {visible.map(render)}
+    {safeRows.length > threshold && <article className="record show-more-card">
+      <button className="primary full" onClick={() => setExpanded(!expanded)}>
+        {expanded ? "Minimise entries" : `Show all ${safeRows.length} entries`}
+      </button>
+    </article>}
+  </>;
 }
 
 function Input({ type, value, options, horses, owners, onChange }) {
