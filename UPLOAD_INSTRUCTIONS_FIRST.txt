@@ -1,33 +1,51 @@
-STATIC DEPLOYMENT PACKAGE - NO NPM INSTALL
+THE STABLE MANAGER - COMPLETE FINAL REBUILD
 
-This package is already built. It contains only static files.
+This is the normal Vercel/GitHub version.
 
 Upload the CONTENTS of this folder to GitHub.
 
-Your GitHub repo root should look like:
-assets/
-config.js
+Your GitHub repo root should contain:
+api/
+public/
+src/
 index.html
+package.json
+vite.config.js
 vercel.json
-UPLOAD_INSTRUCTIONS_FIRST.txt
+README.md
+RUN_THIS_SQL_FIRST.sql
 
-There should be NO package.json.
+There should be NO old rebuild folders.
 There should be NO package-lock.json.
-There should be NO src folder.
-There should be NO api folder.
-
-After upload:
-1. Open config.js in GitHub.
-2. Replace:
-   PASTE_YOUR_SUPABASE_PROJECT_URL_HERE
-   PASTE_YOUR_SUPABASE_ANON_PUBLIC_KEY_HERE
-3. Commit the change.
 
 Vercel settings:
-Framework Preset: Other
-Build Command: leave blank
-Install Command: leave blank
-Output Directory: leave blank or ./
+Framework Preset: Vite
 Root Directory: ./
+Install Command: npm install --no-audit --no-fund
+Build Command: npm run build
+Output Directory: dist
+Node.js Version: 20.x
 
-This avoids Vercel npm install completely.
+Environment variables required in Vercel:
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+
+Features included:
+- Stable login and owner portal as separate access points
+- Admin/trainer/staff/owner role handling
+- Horses with profile pages
+- Multiple owners per horse
+- Ownership percentages
+- Owner profile pages
+- Work sectors requested
+- Warm-up details for Jog/Canter, Gallop, Trot, Hopple
+- Sectionals: Overall Time, Mile Rate, Last Half, Last Quarter
+- Horse profile work shows both overall time and mile rate
+- Work lists become collapsible when long
+- Phone-style calendar
+- Racing, nominations/results/prizemoney
+- Vet and farrier billing to owners by percentage
+- Invoices with owner dropdown, email/phone autofill, line items, share, print
+- Updates with photos/videos/links
+- Updates distribute to owner portal/notifications
+- Analytics: wins, placings, starts, prizemoney, income/expenses/net
