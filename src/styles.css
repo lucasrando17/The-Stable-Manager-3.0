@@ -287,18 +287,28 @@ button{cursor:pointer}
   }
 }
 
-.login-options {
-  display: flex;
-  justify-content: space-between;
+
+/* Password reset patch */
+.always-visible-login-options {
+  display: flex !important;
+  justify-content: flex-end;
   gap: 10px;
   margin-top: 12px;
   flex-wrap: wrap;
 }
 
-.invite-panel {
-  margin-bottom: 16px;
+.forgot-password-link {
+  color: #0f172a !important;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
-.invite-panel p {
-  color: #64748b;
+.login-message {
+  margin-top: 12px;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 10px;
+  line-height: 1.4;
 }

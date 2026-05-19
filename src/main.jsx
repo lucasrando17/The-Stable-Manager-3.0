@@ -88,6 +88,7 @@ function App() {
   const [tab, setTab] = useState("dashboard");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -97,6 +98,7 @@ function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession) setEntry("app");
+      if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -123,6 +125,7 @@ function App() {
   }
 
   if (loading) return <div className="center">Loading...</div>;
+  if (session && passwordRecovery) return <PasswordResetForm onDone={() => setPasswordRecovery(false)} setToast={setToast} />;
   if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "invite") return <InviteSignup onBack={() => setEntry("landing")} setToast={setToast} />;
@@ -146,6 +149,58 @@ function App() {
       : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />}
   </div>;
 }
+
+
+function PasswordResetForm({ onDone, setToast }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setMessage("");
+
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirm) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setToast?.("Password updated. You can now log in.");
+    setMessage("Password updated. You can now log in.");
+
+    setTimeout(async () => {
+      await supabase.auth.signOut();
+      onDone?.();
+    }, 1200);
+  }
+
+  return <main className="login-screen">
+    <PhotoReel />
+    <section className="login-card">
+      <h1>Reset Password</h1>
+      <p>Create a new password for your account.</p>
+      <form onSubmit={submit}>
+        <label>New Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label>Confirm New Password<input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
+        <button className="primary full">Update Password</button>
+      </form>
+      {message && <p className="login-message">{message}</p>}
+    </section>
+  </main>;
+}
+
 
 function Landing({ setEntry }) {
   return <main className="landing">
@@ -189,10 +244,27 @@ function Login({ mode, onBack, setLoginMode }) {
 
   async function submit(event) {
     event.preventDefault();
-    setLoginMode(mode);
     setMessage("");
+    setLoginMode?.(mode);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setMessage(error.message);
+  }
+
+  async function resetPassword() {
+    setMessage("");
+
+    if (!email) {
+      setMessage("Enter your email address first, then click Forgot password.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://thetrottingstableapp.com"
+    });
+
+    if (error) setMessage(error.message);
+    else setMessage("Password reset email sent. Please check your inbox.");
   }
 
   return <main className="login-screen">
@@ -201,15 +273,22 @@ function Login({ mode, onBack, setLoginMode }) {
       <button className="text" onClick={onBack}>← Back</button>
       <h1>{mode === "owner" ? "Owners Portal" : "Stable Login"}</h1>
       <p>{mode === "owner" ? "Owner-only access to horses, updates, invoices and calendar." : "Trainer/staff access to the stable operations side."}</p>
+
       <form onSubmit={submit}>
         <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
         <button className="primary full">Login</button>
       </form>
-      {message && <p className="error">{message}</p>}
+
+      <div className="login-options always-visible-login-options">
+        <button type="button" className="text forgot-password-link" onClick={resetPassword}>Forgot password?</button>
+      </div>
+
+      {message && <p className="login-message">{message}</p>}
     </section>
   </main>;
 }
+
 
 function InviteSignup({ onBack, setToast }) {
   const [code, setCode] = useState("");

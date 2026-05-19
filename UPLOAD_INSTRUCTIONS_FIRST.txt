@@ -1,14 +1,23 @@
-OWNER PORTAL HORSE DETAIL PATCH
+PASSWORD RESET PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Owner portal horse detail and update titles
+Add password reset flow
 
 This patch adds:
-- Owner updates titled/labeled by the horse name.
-- Clickable horse cards inside the owner portal.
-- Owner-side horse profile with trainer-entered details:
-  stable name, age, sex, trainer, status, next target, notes, work, races, updates, vet, farrier, feed, gear and bills.
+- Forgot password? link on Stable Login
+- Forgot password? link on Owners Portal Login
+- Supabase password reset email trigger
+- Reset Password screen after the user clicks the recovery email link
+- New password and confirm password fields
+- Password update via Supabase Auth
 
-No new SQL is required if your existing schema is already working.
+No new SQL is required.
+
+Supabase must already have:
+Authentication -> URL Configuration
+Site URL: https://thetrottingstableapp.com
+Redirect URLs:
+https://thetrottingstableapp.com/**
+https://www.thetrottingstableapp.com/**
