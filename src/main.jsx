@@ -839,12 +839,139 @@ function useOwnerData(profile) {
 
 function OwnerHorses({ profile }) {
   const { horses } = useOwnerData(profile);
-  return <main className="page"><section className="grid">{horses.map(horse => <article className="record" key={horse.name}><h3>{horse.name}</h3><p>{horse.percentage}% owned</p><p>{horse.status || horse.current_status || ""}</p></article>)}</section></main>;
+  const [selectedHorse, setSelectedHorse] = useState(null);
+
+  return <main className="page">
+    <section className="grid">
+      {horses.map(horse => <article className="record clickable" key={horse.name} onClick={() => setSelectedHorse(horse)}>
+        <div className="record-head">
+          <div>
+            <h3>{horse.name}</h3>
+            <p>{horse.percentage}% owned</p>
+          </div>
+          <ChevronRight size={20} />
+        </div>
+        <div className="details">
+          <div><span>Status</span><strong>{horse.status || horse.current_status || "-"}</strong></div>
+          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
+          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
+          <div><span>Next Target</span><strong>{horse.next_target || "-"}</strong></div>
+        </div>
+      </article>)}
+    </section>
+    {selectedHorse && <OwnerHorseDetail horse={selectedHorse} profile={profile} onClose={() => setSelectedHorse(null)} />}
+  </main>;
 }
+
+
+function OwnerHorseDetail({ horse, profile, onClose }) {
+  const [data, setData] = useState({ work: [], races: [], vet: [], farrier: [], feed: [], gear: [], updates: [], invoices: [] });
+
+  useEffect(() => { load(); }, [horse.name]);
+
+  async function load() {
+    const [work, races, vet, farrier, feed, gear, updates, invoices] = await Promise.all([
+      supabase.from("work_entries").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("date", { ascending: false }),
+      supabase.from("race_records").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("date", { ascending: false }),
+      supabase.from("treatments").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("treatment_date", { ascending: false }),
+      supabase.from("farrier_records").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("farrier_date", { ascending: false }),
+      supabase.from("feed_programs").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name),
+      supabase.from("gear_items").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name),
+      supabase.from("updates").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).in("visibility", ["owners", "public-preview"]).order("created_at", { ascending: false }),
+      supabase.from("invoices").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).eq("client_name", profile.owner_name || profile.full_name)
+    ]);
+
+    setData({
+      work: work.data || [],
+      races: races.data || [],
+      vet: vet.data || [],
+      farrier: farrier.data || [],
+      feed: feed.data || [],
+      gear: gear.data || [],
+      updates: updates.data || [],
+      invoices: invoices.data || []
+    });
+  }
+
+  return <div className="modal-backdrop">
+    <section className="modal profile-modal owner-horse-detail">
+      <div className="modal-head">
+        <div>
+          <p className="eyebrow dark-text">Horse Profile</p>
+          <h2>{horse.name}</h2>
+        </div>
+        <button onClick={onClose}><X size={20}/></button>
+      </div>
+
+      <section className="owner-horse-summary">
+        {horse.profile_photo_url && <img src={horse.profile_photo_url} alt={horse.name} />}
+        <div className="owner-horse-basic-grid">
+          <div><span>Ownership</span><strong>{horse.percentage}%</strong></div>
+          <div><span>Stable Name</span><strong>{horse.stable_name || "-"}</strong></div>
+          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
+          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
+          <div><span>Status</span><strong>{horse.status || horse.current_status || "-"}</strong></div>
+          <div><span>Next Target</span><strong>{horse.next_target || "-"}</strong></div>
+        </div>
+      </section>
+
+      {horse.notes && <ProfileSection title="Notes"><p className="owner-horse-notes">{horse.notes}</p></ProfileSection>}
+
+      <ProfileSection title="Recent Work">
+        <CollapsibleList rows={data.work} threshold={6} render={row => <SimpleRow key={row.id} left={`${row.date || "-"} · ${row.sector || "Work"}`} right={`Overall: ${row.overall_time || "-"} · Mile: ${row.mile_rate || "-"}`} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Races">
+        <CollapsibleList rows={data.races} threshold={6} render={row => <SimpleRow key={row.id} left={`${row.date || "-"} · ${row.track || ""} · ${row.status || ""}`} right={row.result || (row.prizemoney ? `$${row.prizemoney}` : "-")} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Updates">
+        <CollapsibleList rows={data.updates} threshold={4} render={update => <article className="owner-update-card" key={update.id}>
+          <p className="owner-update-horse">{update.horse_name}</p>
+          <h3>{update.title || "Stable Update"}</h3>
+          <p>{update.body}</p>
+          <UpdateMedia update={update} />
+        </article>} />
+      </ProfileSection>
+
+      <ProfileSection title="Vet">
+        <CollapsibleList rows={data.vet} threshold={5} render={row => <SimpleRow key={row.id} left={`${row.treatment_date || "-"} · ${row.treatment_type || "Treatment"}`} right={row.follow_up_date ? `Follow-up: ${row.follow_up_date}` : ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Farrier">
+        <CollapsibleList rows={data.farrier} threshold={5} render={row => <SimpleRow key={row.id} left={`${row.farrier_date || "-"} · ${row.service_type || "Farrier"}`} right={row.next_due_date ? `Next due: ${row.next_due_date}` : ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Feed">
+        <CollapsibleList rows={data.feed} threshold={3} render={row => <SimpleRow key={row.id} left={row.morning_feed || row.night_feed || "Feed record"} right={row.supplements || ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Gear">
+        <CollapsibleList rows={data.gear} threshold={5} render={row => <SimpleRow key={row.id} left={`${row.item_name || "Gear"} · ${row.category || ""}`} right={row.condition || ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Bills">
+        <CollapsibleList rows={data.invoices} threshold={5} render={row => <SimpleRow key={row.id} left={row.invoice_number || "Invoice"} right={`$${Number(row.total || 0).toFixed(2)}`} />} />
+      </ProfileSection>
+    </section>
+  </div>;
+}
+
 
 function OwnerUpdates({ profile }) {
   const { updates } = useOwnerData(profile);
-  return <main className="page"><section className="grid">{updates.map(update => <article className="record" key={update.id}><h3>{update.title}</h3><p>{update.body}</p><UpdateMedia update={update}/></article>)}</section></main>;
+  return <main className="page">
+    <section className="grid">
+      {updates.map(update => <article className="record owner-update-card" key={update.id}>
+        <p className="owner-update-horse">{update.horse_name || "Stable Update"}</p>
+        <h3>{update.title || "Update"}</h3>
+        <p>{update.body}</p>
+        <UpdateMedia update={update}/>
+      </article>)}
+    </section>
+  </main>;
 }
 
 function OwnerCalendar({ profile }) {

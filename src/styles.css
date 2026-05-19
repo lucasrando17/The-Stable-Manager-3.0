@@ -200,3 +200,89 @@ button{cursor:pointer}
   padding: 7px 10px;
   width: fit-content;
 }
+
+.owner-update-card {
+  display: grid;
+  gap: 8px;
+}
+
+.owner-update-horse {
+  margin: 0 !important;
+  width: fit-content;
+  border-radius: 999px;
+  background: #0f172a;
+  color: white !important;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+}
+
+.owner-horse-detail {
+  max-width: 980px;
+}
+
+.owner-horse-summary {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.owner-horse-summary img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 24px;
+  border: 1px solid #e2e8f0;
+}
+
+.owner-horse-basic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.owner-horse-basic-grid div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.owner-horse-basic-grid span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.owner-horse-basic-grid strong {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.owner-horse-notes {
+  margin: 0;
+  color: #334155;
+  line-height: 1.55;
+}
+
+@media(min-width: 800px) {
+  .owner-horse-summary {
+    grid-template-columns: 320px 1fr;
+    align-items: stretch;
+  }
+
+  .owner-horse-summary img {
+    height: 100%;
+    max-height: none;
+  }
+
+  .owner-horse-basic-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

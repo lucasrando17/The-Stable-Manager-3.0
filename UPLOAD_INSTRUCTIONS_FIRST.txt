@@ -1,18 +1,14 @@
-MEDIA UPLOAD PATCH
+OWNER PORTAL HORSE DETAIL PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
-Then run RUN_THIS_STORAGE_SQL_FOR_MEDIA_UPLOADS.sql in Supabase SQL Editor.
+Commit message:
+Owner portal horse detail and update titles
 
-This adds:
-- direct photo uploads in Updates
-- direct video uploads in Updates
-- uploaded files stored in Supabase Storage bucket: update-media
-- URLs automatically saved into the update record
-- old manual URL paste support still works
+This patch adds:
+- Owner updates titled/labeled by the horse name.
+- Clickable horse cards inside the owner portal.
+- Owner-side horse profile with trainer-entered details:
+  stable name, age, sex, trainer, status, next target, notes, work, races, updates, vet, farrier, feed, gear and bills.
 
-Vercel settings remain:
-Framework: Vite
-Install Command: pnpm install --no-frozen-lockfile OR npm install --no-audit --no-fund
-Build Command: pnpm run build OR npm run build
-Output Directory: dist
+No new SQL is required if your existing schema is already working.
