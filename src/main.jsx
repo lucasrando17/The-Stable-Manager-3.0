@@ -423,7 +423,6 @@ function InviteSignup({ onBack, setToast }) {
 
   async function submit(event) {
     event.preventDefault();
-    setLoginMode(mode);
     const { data: invite, error: inviteError } = await supabase.from("invite_codes").select("*").eq("code", code.trim()).is("used_by", null).single();
     if (inviteError || !invite) {
       setToast("Invalid or used invite code.");
@@ -516,7 +515,10 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       owner_name: ownerName.trim() || name.trim()
     };
 
-    const { error } = await supabase.from("profiles").update(payload).eq("id", profile.id);
+    const { error } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("id", profile.id);
 
     if (error) {
       setToast(error.message);
@@ -536,22 +538,33 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       return;
     }
 
-    setSaving(true);
     const nextName = stableName.trim();
-    const { error } = await supabase
-  .from("stables")
-  .update({
-    name: stableName.trim()
-  })
-  .eq("id", profile.stable_id);;
 
-   if (error) {
-  setToast(error.message);
-} else {
-  setToast("Stable settings saved.");
-  setStable?.(current => ({ ...(current || {}), id: profile.stable_id, name: stableName.trim() }));
-setProfile?.(current => current ? { ...current, stables: { ...(current.stables || {}), id: profile.stable_id, name: stableName.trim() } } : current);;
-}
+    if (!nextName) {
+      setToast("Stable name cannot be blank.");
+      return;
+    }
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("stables")
+      .update({ name: nextName })
+      .eq("id", profile.stable_id);
+
+    if (error) {
+      setToast(error.message);
+    } else {
+      const updatedStable = {
+        ...(stable || {}),
+        id: profile.stable_id,
+        name: nextName
+      };
+
+      setStable?.(updatedStable);
+      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
+      setStableName(nextName);
+      setToast("Stable settings saved.");
     }
 
     setSaving(false);
@@ -559,6 +572,7 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
 
   async function sendPasswordReset() {
     const email = profile.email || profile.user_email || "";
+
     if (!email) {
       setToast("No email address found for this account.");
       return;
@@ -568,9 +582,12 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
       redirectTo: "https://thetrottingstableapp.com"
     });
 
-    if (error) setToast(error.message);
-    else setToast("Password reset email sent.");
-  
+    if (error) {
+      setToast(error.message);
+    } else {
+      setToast("Password reset email sent.");
+    }
+  }
 
   return <main className="page">
     <section className="module-header">
@@ -583,8 +600,8 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
         <h3>Account</h3>
         <p>Manage your personal login profile.</p>
         <form className="form-grid" onSubmit={saveAccount}>
-          <label className="field"><span>Name</span><input value={name} onChange={e => setName(e.target.value)} /></label>
-          <label className="field"><span>Owner Display Name</span><input value={ownerName} onChange={e => setOwnerName(e.target.value)} /></label>
+          <label className="field"><span>Name</span><input value={name} onChange={event => setName(event.target.value)} /></label>
+          <label className="field"><span>Owner Display Name</span><input value={ownerName} onChange={event => setOwnerName(event.target.value)} /></label>
           <label className="field"><span>Email</span><input value={profile.email || ""} disabled /></label>
           <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Account"}</button>
         </form>
@@ -594,7 +611,7 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
         <h3>Stable</h3>
         <p>Basic stable identity and branding. Logo upload can be added next.</p>
         <form className="form-grid" onSubmit={saveStable}>
-          <label className="field"><span>Stable Name</span><input value={stableName} onChange={e => setStableName(e.target.value)} /></label>
+          <label className="field"><span>Stable Name</span><input value={stableName} onChange={event => setStableName(event.target.value)} /></label>
           <label className="field"><span>Stable ID</span><input value={profile.stable_id || ""} disabled /></label>
           <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Stable"}</button>
         </form>
@@ -604,8 +621,8 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
         <h3>Security</h3>
         <p>Password reset works now. Two-factor authentication will be added here next.</p>
         <div className="settings-actions">
-          <button className="ghost" onClick={sendPasswordReset}>Send Password Reset Email</button>
-          <button className="ghost" disabled>Two-Factor Authentication — Coming Next</button>
+          <button className="ghost" type="button" onClick={sendPasswordReset}>Send Password Reset Email</button>
+          <button className="ghost" type="button" disabled>Two-Factor Authentication — Coming Next</button>
         </div>
       </article>
 
@@ -613,12 +630,12 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
         <h3>Notifications</h3>
         <p>Email notifications for updates, invoices, race reminders and owner notices will live here.</p>
         <div className="settings-actions">
-          <button className="ghost" disabled>Email Preferences — Coming Soon</button>
+          <button className="ghost" type="button" disabled>Email Preferences — Coming Soon</button>
         </div>
       </article>
     </section>
   </main>;
-
+}
 
 function Dashboard({ stableId, setTab }) {
   const [counts, setCounts] = useState({});
@@ -858,8 +875,8 @@ function Invoices({ stableId, setToast }) {
     const { data, error } = await supabase.from("invoices").select("*").eq("stable_id", stableId).order("created_at", { ascending: false });
     if (error) setToast(error.message);
     setRows(data || []);
-    const horseResult = await supabase.from("horses").select("name").eq("stable_id", stableId).order("name");
-    setHorses(horseResult.data || []);
+    const horseResult = await supabase.from("horses").select("name,stable_name").eq("stable_id", stableId).order("name");
+    setHorses(validHorseOptions(horseResult.data || []));
     const ownerResult = await supabase.from("owners").select("name,email,phone").eq("stable_id", stableId).order("name");
     setOwners(ownerResult.data || []);
   }
@@ -870,7 +887,7 @@ function Invoices({ stableId, setToast }) {
       client_name: "",
       client_email: "",
       client_phone: "",
-      horse_name: horses[0]?.name || "",
+      horse_name: horseDisplayName(validHorseOptions(horses)[0]) || "",
       due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0,10),
       status: "Draft",
       payment_status: "Unpaid",
@@ -966,7 +983,7 @@ function InvoiceModal({ modal, horses, owners, onClose, onSave }) {
         <Field label="Owner / Client"><select value={invoice.client_name || ""} onChange={e => setField("client_name", e.target.value)}><option value="">Select owner...</option>{owners.map(owner => <option key={owner.name} value={owner.name}>{owner.name}</option>)}</select></Field>
         <Field label="Client Email"><input value={invoice.client_email || ""} onChange={e => setField("client_email", e.target.value)} /></Field>
         <Field label="Client Phone"><input value={invoice.client_phone || ""} onChange={e => setField("client_phone", e.target.value)} /></Field>
-        <Field label="Horse"><select value={invoice.horse_name || ""} onChange={e => setField("horse_name", e.target.value)}>{horses.map(horse => <option key={horse.name}>{horse.name}</option>)}</select></Field>
+        <Field label="Horse"><select value={invoice.horse_name || ""} onChange={event => setField("horse_name", event.target.value)}>{validHorseOptions(horses).map(horse => { const display = horseDisplayName(horse); return <option key={horse.name || horse.stable_name || display} value={display}>{display}</option>; })}</select></Field>
         <Field label="Due Date"><input type="date" value={invoice.due_date || ""} onChange={e => setField("due_date", e.target.value)} /></Field>
         <Field label="Status"><select value={invoice.status || "Draft"} onChange={e => setField("status", e.target.value)}><option>Draft</option><option>Sent</option><option>Part Paid</option><option>Paid</option><option>Overdue</option></select></Field>
         <Field label="Payment Status"><select value={invoice.payment_status || "Unpaid"} onChange={e => setField("payment_status", e.target.value)}><option>Unpaid</option><option>Part Paid</option><option>Paid</option></select></Field>
