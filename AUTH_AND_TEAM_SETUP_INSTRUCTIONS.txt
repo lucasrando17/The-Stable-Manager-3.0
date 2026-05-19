@@ -1,0 +1,36 @@
+AUTH, PASSWORD RESET, EMAIL CODES AND TEAM INVITES
+
+This patch adds:
+- Forgot Password on login.
+- Email verification-code login option.
+- Password reset form after recovery link.
+- Team & User Invites panel.
+- Roles: Admin, Trainer, Driver, Stable Staff, Vet, Farrier, Owner, Read-only Guest.
+- Invite emails through /api/send-email using Resend if configured.
+- Invite codes still work even if Resend is not configured.
+
+Important Supabase settings:
+1. Supabase -> Authentication -> Providers -> Email:
+   - Enable Email provider.
+   - Enable Confirm email if you want email verification for new accounts.
+   - Enable Email OTP if available.
+
+2. Supabase -> Authentication -> URL Configuration:
+   - Site URL: your deployed Vercel URL.
+   - Redirect URLs: your deployed Vercel URL.
+
+3. Resend:
+   - Add RESEND_API_KEY in Vercel environment variables.
+   - Add INVOICE_FROM_EMAIL in Vercel environment variables.
+
+4. If using a verified domain later:
+   - Set INVOICE_FROM_EMAIL to something like hello@yourdomain.com.
+   - Until then, use a Resend-supported sender.
+
+How your friend can try it tomorrow:
+1. Admin logs in.
+2. Go Team Invites.
+3. Create invite for role Admin or Trainer.
+4. Copy invite code or email it.
+5. Friend opens app -> Join With Invite Code.
+6. Friend creates account and starts adding stable data.
