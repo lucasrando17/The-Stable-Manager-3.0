@@ -13,6 +13,7 @@ import "./styles.css";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
+// Upload your landing photos to public/login-photos using these exact names.
 const photos = ["/login-photos/photo-1.jpg", "/login-photos/photo-2.jpg", "/login-photos/photo-3.jpg", "/login-photos/photo-4.jpg"];
 
 const WORK_SECTORS = ["Jog - Cart", "Jog- Lead", "Jog- Jogger Machine", "Jog/Canter", "Gallop", "Trot", "Hopple", "Walking Machine", "Water Walk", "Race", "Trial", "Educational Trial", "Swim", "Beach Work", "Recovery"];
@@ -148,27 +149,112 @@ function App() {
 }
 
 function Landing({ setEntry }) {
-  return <main className="landing">
+  const features = [
+    {
+      title: "Stable Operations",
+      text: "Manage horses, work entries, racing plans, vet work, farrier records, feed programs, gear, staff and inventory from one clean dashboard."
+    },
+    {
+      title: "Owner Portal",
+      text: "Give owners a polished private portal where they can view their horses, ownership percentages, updates, invoices and upcoming activity."
+    },
+    {
+      title: "Work & Racing Calendar",
+      text: "Use a phone-style calendar to review trackwork, trials, races, nominations, treatments and follow-up tasks by date."
+    },
+    {
+      title: "Invoices & Billing",
+      text: "Create clear invoices with editable line items, owner autofill, print options and percentage-based owner billing."
+    },
+    {
+      title: "Media Updates",
+      text: "Send written updates with photos, videos and links so owners can follow their horses with confidence."
+    },
+    {
+      title: "Performance Analytics",
+      text: "Track starts, wins, placings, prizemoney, income, expenses, net position and work volume across the stable."
+    }
+  ];
+
+  const previewStats = [
+    ["Horses", "Profiles, owners, gear and history"],
+    ["Work", "Sectionals, warm-ups and recovery"],
+    ["Racing", "Nominations, results and prizemoney"],
+    ["Owners", "Updates, invoices and portal access"]
+  ];
+
+  return <main className="landing premium-landing">
     <PhotoReel />
-    <header className="landing-nav">
-      <strong>The Trotting Stable App</strong>
+    <header className="landing-nav premium-nav">
+      <button className="brand-button" onClick={() => setEntry("landing")} aria-label="The Trotting Stable App home">
+        <span className="brand-mark">T</span>
+        <span>The Trotting Stable App</span>
+      </button>
       <div>
         <button className="ghost dark" onClick={() => setEntry("stableLogin")}>Stable Login</button>
         <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Owners Portal</button>
         <button className="primary light" onClick={() => setEntry("invite")}>Join With Invite Code</button>
       </div>
     </header>
-    <section className="hero">
-      <p className="eyebrow">Harness racing stable software</p>
-      <h1>Stable operations and owner communication in one platform.</h1>
-      <p>Separate access points for trainers/staff and owners, with role-based permissions and a proper owners portal.</p>
-      <div className="hero-actions">
+
+    <section className="premium-hero">
+      <div className="hero-copy">
+        <p className="eyebrow">Premium harness racing stable management</p>
+        <h1>Run the stable. Inform the owners. Keep everything moving.</h1>
+        <p className="hero-lead">
+          A clean, secure platform for trainers, staff and owners — built around the daily rhythm of a working harness racing stable.
+        </p>
+        <div className="hero-actions">
+          <button className="primary light" onClick={() => setEntry("stableLogin")}>Enter Stable App</button>
+          <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Preview Owners Portal</button>
+          <button className="ghost dark" onClick={() => setEntry("invite")}>Sign Up With Invite</button>
+        </div>
+      </div>
+
+      <aside className="preview-device" aria-label="Application preview">
+        <div className="preview-device-top">
+          <span></span><span></span><span></span>
+        </div>
+        <div className="preview-card-main">
+          <p>Today at the stable</p>
+          <h2>Stable Command Centre</h2>
+          <div className="preview-grid">
+            {previewStats.map(([label, text]) => <div key={label}>
+              <strong>{label}</strong>
+              <span>{text}</span>
+            </div>)}
+          </div>
+        </div>
+        <div className="preview-list">
+          <div><strong>Work Entry</strong><span>Overall Time · Mile Rate · Last Half · Last Quarter</span></div>
+          <div><strong>Owner Update</strong><span>Photos, videos, links and message delivery</span></div>
+          <div><strong>Invoice</strong><span>Owner autofill and percentage-based billing</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <section className="premium-feature-section">
+      <div className="section-heading">
+        <p className="eyebrow">Built for the details</p>
+        <h2>Everything your stable needs before, during and after race day.</h2>
+      </div>
+      <div className="feature-grid premium-feature-grid">
+        {features.map(item => <article className="feature-card premium-feature-card" key={item.title}>
+          <h3>{item.title}</h3>
+          <p>{item.text}</p>
+        </article>)}
+      </div>
+    </section>
+
+    <section className="premium-preview-strip">
+      <div>
+        <p className="eyebrow">Separate access points</p>
+        <h2>Stable side for the team. Owner side for communication.</h2>
+      </div>
+      <div className="preview-actions">
         <button className="primary light" onClick={() => setEntry("stableLogin")}>Stable Login</button>
         <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Owners Portal</button>
       </div>
-    </section>
-    <section className="feature-grid">
-      {["Stable Operations","Owners Portal","Phone Calendar","Invoices","Analytics","Media Updates"].map(x => <article className="feature-card" key={x}><h3>{x}</h3><p>Included in the clean final rebuild.</p></article>)}
     </section>
   </main>;
 }
