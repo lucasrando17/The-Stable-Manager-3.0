@@ -13,7 +13,6 @@ import "./styles.css";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
-// Upload your landing photos to public/login-photos using these exact names.
 const photos = ["/login-photos/photo-1.jpg", "/login-photos/photo-2.jpg", "/login-photos/photo-3.jpg", "/login-photos/photo-4.jpg"];
 
 const WORK_SECTORS = ["Jog - Cart", "Jog- Lead", "Jog- Jogger Machine", "Jog/Canter", "Gallop", "Trot", "Hopple", "Walking Machine", "Water Walk", "Race", "Trial", "Educational Trial", "Swim", "Beach Work", "Recovery"];
@@ -149,112 +148,27 @@ function App() {
 }
 
 function Landing({ setEntry }) {
-  const features = [
-    {
-      title: "Stable Operations",
-      text: "Manage horses, work entries, racing plans, vet work, farrier records, feed programs, gear, staff and inventory from one clean dashboard."
-    },
-    {
-      title: "Owner Portal",
-      text: "Give owners a polished private portal where they can view their horses, ownership percentages, updates, invoices and upcoming activity."
-    },
-    {
-      title: "Work & Racing Calendar",
-      text: "Use a phone-style calendar to review trackwork, trials, races, nominations, treatments and follow-up tasks by date."
-    },
-    {
-      title: "Invoices & Billing",
-      text: "Create clear invoices with editable line items, owner autofill, print options and percentage-based owner billing."
-    },
-    {
-      title: "Media Updates",
-      text: "Send written updates with photos, videos and links so owners can follow their horses with confidence."
-    },
-    {
-      title: "Performance Analytics",
-      text: "Track starts, wins, placings, prizemoney, income, expenses, net position and work volume across the stable."
-    }
-  ];
-
-  const previewStats = [
-    ["Horses", "Profiles, owners, gear and history"],
-    ["Work", "Sectionals, warm-ups and recovery"],
-    ["Racing", "Nominations, results and prizemoney"],
-    ["Owners", "Updates, invoices and portal access"]
-  ];
-
-  return <main className="landing premium-landing">
+  return <main className="landing">
     <PhotoReel />
-    <header className="landing-nav premium-nav">
-      <button className="brand-button" onClick={() => setEntry("landing")} aria-label="The Trotting Stable App home">
-        <span className="brand-mark">T</span>
-        <span>The Trotting Stable App</span>
-      </button>
+    <header className="landing-nav">
+      <strong>The Trotting Stable App</strong>
       <div>
         <button className="ghost dark" onClick={() => setEntry("stableLogin")}>Stable Login</button>
         <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Owners Portal</button>
         <button className="primary light" onClick={() => setEntry("invite")}>Join With Invite Code</button>
       </div>
     </header>
-
-    <section className="premium-hero">
-      <div className="hero-copy">
-        <p className="eyebrow">Premium harness racing stable management</p>
-        <h1>Run the stable. Inform the owners. Keep everything moving.</h1>
-        <p className="hero-lead">
-          A clean, secure platform for trainers, staff and owners — built around the daily rhythm of a working harness racing stable.
-        </p>
-        <div className="hero-actions">
-          <button className="primary light" onClick={() => setEntry("stableLogin")}>Enter Stable App</button>
-          <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Preview Owners Portal</button>
-          <button className="ghost dark" onClick={() => setEntry("invite")}>Sign Up With Invite</button>
-        </div>
-      </div>
-
-      <aside className="preview-device" aria-label="Application preview">
-        <div className="preview-device-top">
-          <span></span><span></span><span></span>
-        </div>
-        <div className="preview-card-main">
-          <p>Today at the stable</p>
-          <h2>Stable Command Centre</h2>
-          <div className="preview-grid">
-            {previewStats.map(([label, text]) => <div key={label}>
-              <strong>{label}</strong>
-              <span>{text}</span>
-            </div>)}
-          </div>
-        </div>
-        <div className="preview-list">
-          <div><strong>Work Entry</strong><span>Overall Time · Mile Rate · Last Half · Last Quarter</span></div>
-          <div><strong>Owner Update</strong><span>Photos, videos, links and message delivery</span></div>
-          <div><strong>Invoice</strong><span>Owner autofill and percentage-based billing</span></div>
-        </div>
-      </aside>
-    </section>
-
-    <section className="premium-feature-section">
-      <div className="section-heading">
-        <p className="eyebrow">Built for the details</p>
-        <h2>Everything your stable needs before, during and after race day.</h2>
-      </div>
-      <div className="feature-grid premium-feature-grid">
-        {features.map(item => <article className="feature-card premium-feature-card" key={item.title}>
-          <h3>{item.title}</h3>
-          <p>{item.text}</p>
-        </article>)}
-      </div>
-    </section>
-
-    <section className="premium-preview-strip">
-      <div>
-        <p className="eyebrow">Separate access points</p>
-        <h2>Stable side for the team. Owner side for communication.</h2>
-      </div>
-      <div className="preview-actions">
+    <section className="hero">
+      <p className="eyebrow">Harness racing stable software</p>
+      <h1>Stable operations and owner communication in one platform.</h1>
+      <p>Separate access points for trainers/staff and owners, with role-based permissions and a proper owners portal.</p>
+      <div className="hero-actions">
         <button className="primary light" onClick={() => setEntry("stableLogin")}>Stable Login</button>
         <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Owners Portal</button>
       </div>
+    </section>
+    <section className="feature-grid">
+      {["Stable Operations","Owners Portal","Phone Calendar","Invoices","Analytics","Media Updates"].map(x => <article className="feature-card" key={x}><h3>{x}</h3><p>Included in the clean final rebuild.</p></article>)}
     </section>
   </main>;
 }
@@ -495,7 +409,7 @@ function GenericTable({ stableId, config, setToast }) {
     </section>
     {modal?.mode === "horseProfile" && <HorseProfile horse={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
     {modal?.mode === "ownerProfile" && <OwnerProfile owner={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
-    {modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
+    {modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} stableId={stableId} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
   </main>;
 }
 
@@ -559,7 +473,7 @@ function UpdatesPanel({ stableId, setToast }) {
     table: "updates",
     title: "Updates",
     icon: Megaphone,
-    fields: [["title","Title","text"],["horse_name","Horse","horseName"],["category","Category","select",["Stable Update","Owner Update","Race Update","Vet Update","Work Update","General"]],["body","Update Message","textarea"],["photo_urls","Photo URLs","textarea"],["video_urls","Video URLs","textarea"],["link_urls","Links","textarea"],["visibility","Visibility","select",["internal","owners","public-preview"]],["send_status","Send Status","select",["Draft","Ready To Send","Sent"]]],
+    fields: [["title","Title","text"],["horse_name","Horse","horseName"],["category","Category","select",["Stable Update","Owner Update","Race Update","Vet Update","Work Update","General"]],["body","Update Message","textarea"],["photo_urls","Photos","photoUpload"],["video_urls","Videos","videoUpload"],["link_urls","Links","textarea"],["visibility","Visibility","select",["internal","owners","public-preview"]],["send_status","Send Status","select",["Draft","Ready To Send","Sent"]]],
     display: ["horse_name","category","visibility","send_status","body","photo_urls","video_urls","link_urls"]
   };
   return <GenericTable stableId={stableId} config={config} setToast={setToast} />;
@@ -998,14 +912,14 @@ function PhoneCalendar({ rows, dateField, selectedDate, setSelectedDate, title }
   </section>;
 }
 
-function RecordModal({ title, fields, record, horses, owners, onClose, onSave }) {
+function RecordModal({ title, fields, record, horses, owners, stableId, onClose, onSave }) {
   const [form, setForm] = useState(record);
   return <div className="modal-backdrop">
     <section className="modal">
       <div className="modal-head"><h2>{title}</h2><button onClick={onClose}><X size={20}/></button></div>
       <div className="form-grid">
         {fields.filter(([_key, _label, type]) => type !== "conditionalWarmup" || WARMUP_SECTORS.includes(form.sector)).map(([key, label, type, options]) => <Field key={key} label={label}>
-          <Input type={type} value={form[key] ?? ""} options={options} horses={horses} owners={owners} onChange={value => setForm(current => ({ ...current, [key]: value }))} />
+          <Input type={type} value={form[key] ?? ""} options={options} horses={horses} owners={owners} stableId={stableId} onChange={value => setForm(current => ({ ...current, [key]: value }))} />
         </Field>)}
       </div>
       <button className="primary full" onClick={() => onSave(form)}>Save</button>
@@ -1020,6 +934,65 @@ function UpdateMedia({ update }) {
     {splitLines(update.link_urls).map((url, index) => <a className="media-pill" href={url} target="_blank" rel="noreferrer" key={url}>Link {index + 1}</a>)}
   </div>;
 }
+
+
+function MediaUploadInput({ value, stableId, accept, kind, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const urls = splitLines(value);
+
+  async function uploadFiles(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    setUploading(true);
+    const uploadedUrls = [];
+
+    for (const file of files) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const path = `${stableId || "stable"}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const { error } = await supabase.storage.from("update-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false
+      });
+
+      if (error) {
+        alert(error.message || "Upload failed");
+        continue;
+      }
+
+      const { data } = supabase.storage.from("update-media").getPublicUrl(path);
+      if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+    }
+
+    const next = [...urls, ...uploadedUrls].join("\n");
+    onChange(next);
+    setUploading(false);
+    event.target.value = "";
+  }
+
+  function removeUrl(url) {
+    onChange(urls.filter(item => item !== url).join("\n"));
+  }
+
+  return <div className="media-upload-box">
+    <label className="upload-button">
+      {uploading ? "Uploading..." : `Upload ${kind === "photo" ? "photos" : "videos"}`}
+      <input type="file" accept={accept} multiple onChange={uploadFiles} disabled={uploading} />
+    </label>
+    <textarea
+      value={value || ""}
+      onChange={event => onChange(event.target.value)}
+      placeholder={`Uploaded ${kind} URLs will appear here. You can also paste URLs manually.`}
+    />
+    {!!urls.length && <div className="uploaded-media-list">
+      {urls.map(url => <div key={url} className="uploaded-media-item">
+        <span>{url}</span>
+        <button type="button" onClick={() => removeUrl(url)}>Remove</button>
+      </div>)}
+    </div>}
+  </div>;
+}
+
 
 function SimpleRow({ left, right }) {
   return <div className="profile-row"><span>{left}</span><strong>{right}</strong></div>;
@@ -1056,7 +1029,9 @@ function CollapsibleRecords({ rows, threshold = 12, render }) {
   </>;
 }
 
-function Input({ type, value, options, horses, owners, onChange }) {
+function Input({ type, value, options, horses, owners, stableId, onChange }) {
+  if (type === "photoUpload") return <MediaUploadInput value={value} stableId={stableId} accept="image/*" kind="photo" onChange={onChange} />;
+  if (type === "videoUpload") return <MediaUploadInput value={value} stableId={stableId} accept="video/*" kind="video" onChange={onChange} />;
   if (type === "textarea" || type === "conditionalWarmup") return <textarea value={value} onChange={event => onChange(event.target.value)} />;
   if (type === "select") return <select value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option}>{option}</option>)}</select>;
   if (type === "horseName") return <select value={value} onChange={event => onChange(event.target.value)}>{horses.map(horse => <option key={horse.name}>{horse.name}</option>)}</select>;

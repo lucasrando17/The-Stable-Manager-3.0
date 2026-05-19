@@ -1,51 +1,18 @@
-THE STABLE MANAGER - COMPLETE FINAL REBUILD
-
-This is the normal Vercel/GitHub version.
+MEDIA UPLOAD PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
-Your GitHub repo root should contain:
-api/
-public/
-src/
-index.html
-package.json
-vite.config.js
-vercel.json
-README.md
-RUN_THIS_SQL_FIRST.sql
+Then run RUN_THIS_STORAGE_SQL_FOR_MEDIA_UPLOADS.sql in Supabase SQL Editor.
 
-There should be NO old rebuild folders.
-There should be NO package-lock.json.
+This adds:
+- direct photo uploads in Updates
+- direct video uploads in Updates
+- uploaded files stored in Supabase Storage bucket: update-media
+- URLs automatically saved into the update record
+- old manual URL paste support still works
 
-Vercel settings:
-Framework Preset: Vite
-Root Directory: ./
-Install Command: npm install --no-audit --no-fund
-Build Command: npm run build
+Vercel settings remain:
+Framework: Vite
+Install Command: pnpm install --no-frozen-lockfile OR npm install --no-audit --no-fund
+Build Command: pnpm run build OR npm run build
 Output Directory: dist
-Node.js Version: 20.x
-
-Environment variables required in Vercel:
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
-
-Features included:
-- Stable login and owner portal as separate access points
-- Admin/trainer/staff/owner role handling
-- Horses with profile pages
-- Multiple owners per horse
-- Ownership percentages
-- Owner profile pages
-- Work sectors requested
-- Warm-up details for Jog/Canter, Gallop, Trot, Hopple
-- Sectionals: Overall Time, Mile Rate, Last Half, Last Quarter
-- Horse profile work shows both overall time and mile rate
-- Work lists become collapsible when long
-- Phone-style calendar
-- Racing, nominations/results/prizemoney
-- Vet and farrier billing to owners by percentage
-- Invoices with owner dropdown, email/phone autofill, line items, share, print
-- Updates with photos/videos/links
-- Updates distribute to owner portal/notifications
-- Analytics: wins, placings, starts, prizemoney, income/expenses/net
