@@ -1,8 +1,9 @@
 {
-  "name": "trotting-stable-final-clean-rebuild",
+  "name": "the-stable-manager-complete-final",
   "private": true,
-  "version": "12.0.0",
+  "version": "13.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": "20.x"
   },
