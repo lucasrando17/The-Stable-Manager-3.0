@@ -159,8 +159,8 @@ function App() {
       <button className="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18}/>Logout</button>
     </header>
     {profile.role === "owner" || loginMode === "owner"
-      ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />
-      : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />}
+      ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />
+      : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />}
   </div>;
 }
 
@@ -461,7 +461,7 @@ function InviteSignup({ onBack, setToast }) {
   </main>;
 }
 
-function StableApp({ profile, tab, setTab, setToast }) {
+function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfile }) {
   const hidden = profile.role === "staff" ? ["finance", "staff"] : [];
   return <>
     <nav className="nav">
@@ -476,12 +476,12 @@ function StableApp({ profile, tab, setTab, setToast }) {
     {tab === "updates" && <UpdatesPanel stableId={profile.stable_id} setToast={setToast} />}
     {tab === "analytics" && <Analytics stableId={profile.stable_id} />}
     {tab === "invoices" && financeRoles.includes(profile.role) && <Invoices stableId={profile.stable_id} setToast={setToast} />}
-    {tab === "settings" && <SettingsPanel profile={profile} setToast={setToast} />}
+    {tab === "settings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} />}
     {moduleDefs[tab] && <GenericTable stableId={profile.stable_id} config={moduleDefs[tab]} setToast={setToast} />}
   </>;
 }
 
-function OwnerApp({ profile, tab, setTab, setToast }) {
+function OwnerApp({ profile, tab, setTab, setToast, stable, setStable, setProfile }) {
   return <>
     <nav className="nav">
       <NavButton active={tab === "ownerHome"} onClick={() => setTab("ownerHome")} icon={Home} label="Home" />
@@ -496,15 +496,15 @@ function OwnerApp({ profile, tab, setTab, setToast }) {
     {tab === "ownerUpdates" && <OwnerUpdates profile={profile} />}
     {tab === "ownerCalendar" && <OwnerCalendar profile={profile} />}
     {tab === "ownerInvoices" && <OwnerInvoices profile={profile} />}
-    {tab === "ownerSettings" && <SettingsPanel profile={profile} setToast={setToast} ownerMode />}
+    {tab === "ownerSettings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} ownerMode />}
   </>;
 }
 
 
-function SettingsPanel({ profile, setToast, ownerMode = false }) {
+function SettingsPanel({ profile, stable, setStable, setProfile, setToast, ownerMode = false }) {
   const [name, setName] = useState(profile.full_name || profile.owner_name || "");
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
-  const [stableName, setStableName] = useState(profile.stables?.name || "");
+  const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
   const [saving, setSaving] = useState(false);
 
   async function saveAccount(event) {
@@ -518,8 +518,12 @@ function SettingsPanel({ profile, setToast, ownerMode = false }) {
 
     const { error } = await supabase.from("profiles").update(payload).eq("id", profile.id);
 
-    if (error) setToast(error.message);
-    else setToast("Account settings saved.");
+    if (error) {
+      setToast(error.message);
+    } else {
+      setProfile?.(current => current ? { ...current, ...payload } : current);
+      setToast("Account settings saved.");
+    }
 
     setSaving(false);
   }
@@ -533,10 +537,23 @@ function SettingsPanel({ profile, setToast, ownerMode = false }) {
     }
 
     setSaving(true);
-    const { error } = await supabase.from("stables").update({ name: stableName.trim() }).eq("id", profile.stable_id);
+    const nextName = stableName.trim();
+    const { data, error } = await supabase
+      .from("stables")
+      .update({ name: nextName })
+      .eq("id", profile.stable_id)
+      .select()
+      .single();
 
-    if (error) setToast(error.message);
-    else setToast("Stable settings saved.");
+    if (error) {
+      setToast(error.message);
+    } else {
+      const updatedStable = data || { ...(stable || {}), id: profile.stable_id, name: nextName };
+      setStable?.(updatedStable);
+      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
+      setStableName(updatedStable.name || nextName);
+      setToast("Stable settings saved.");
+    }
 
     setSaving(false);
   }

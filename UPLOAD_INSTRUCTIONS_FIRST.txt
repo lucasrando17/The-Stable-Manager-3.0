@@ -1,21 +1,11 @@
-SETTINGS / ACCOUNT MANAGEMENT PATCH
+STABLE NAME DISPLAY FIX PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Add settings and account management
+Fix stable name settings display update
 
-This patch adds:
-- Settings tab for stable/admin users
-- Account tab for owner users
-- Edit personal name / owner display name
-- Edit stable name
-- Display stable ID
-- Send password reset email from Settings
-- Security section with 2FA placeholder
-- Notifications placeholder
-
-No SQL should be needed unless saving account settings fails due to a missing profile column.
-If it fails, run:
-RUN_IF_SETTINGS_SAVE_FAILS.sql
-in Supabase SQL Editor.
+This patch fixes:
+- Editing Stable Name in Settings now updates the top display immediately.
+- Account name changes also update local app state immediately.
+- No SQL required.
