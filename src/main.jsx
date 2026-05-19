@@ -24,8 +24,8 @@ const financeRoles = ["admin", "trainer"];
 const moduleDefs = {
   horses: {
     table: "horses", title: "Horses", icon: BadgeCheck, profile: "horse",
-    fields: [["name","Registered Name","text"],["stable_name","Stable Name","text"],["profile_photo_url","Profile Photo URL","text"],["age","Age","number"],["sex","Sex","select",["Gelding","Mare","Horse","Colt","Filly"]],["trainer","Trainer","text"],["status","Status","select",["Racing","Building","Trialling","Spelling","Rehab","Sold","Retired"]],["current_status","Current Status","text"],["next_target","Next Target","text"],["notes","Notes","textarea"]],
-    display: ["stable_name","age","sex","trainer","status","current_status","next_target"]
+    fields: [["name","Registered Name","text"],["stable_name","Stable Name","text"],["profile_photo_url","Profile Photo URL","text"],["sire","Sire","text"],["mare","Mare","text"],["age","Age","number"],["sex","Sex","select",["Gelding","Mare","Horse","Colt","Filly"]],["trainer","Trainer","text"],["status","Status","select",["Racing","Building","Trialling","Spelling","Rehab","Sold","Retired"]],["current_status","Current Status","text"],["next_target","Next Target","text"],["notes","Notes","textarea"]],
+    display: ["stable_name","sire","mare","age","sex","trainer","status","current_status","next_target"]
   },
   owners: {
     table: "owners", title: "Owners", icon: Users, profile: "owner",
@@ -955,6 +955,16 @@ function HorseProfile({ horse, stableId, onClose }) {
   return <div className="modal-backdrop">
     <section className="modal profile-modal">
       <div className="modal-head"><h2>{horse.name}</h2><button onClick={onClose}><X size={20}/></button></div>
+      <ProfileSection title="Horse Details">
+        <div className="details">
+          <div><span>Stable Name</span><strong>{horse.stable_name || "-"}</strong></div>
+          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
+          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
+          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
+          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
+        </div>
+      </ProfileSection>
       <button className="primary" onClick={addOwner}>Add Owner Share</button>
       <ProfileSection title="Owners">
         {data.owners.map(row => <div className="profile-row" key={row.id}><span>{row.owner_name}</span><strong>{row.percentage}%</strong><button className="delete small" onClick={() => deleteShare(row.id)}><Trash2 size={14}/></button></div>)}
@@ -1059,6 +1069,8 @@ function OwnerHorses({ profile }) {
           <div><span>Status</span><strong>{horse.status || horse.current_status || "-"}</strong></div>
           <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
           <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
+          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
           <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
           <div><span>Next Target</span><strong>{horse.next_target || "-"}</strong></div>
         </div>
@@ -1115,6 +1127,8 @@ function OwnerHorseDetail({ horse, profile, onClose }) {
           <div><span>Stable Name</span><strong>{horse.stable_name || "-"}</strong></div>
           <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
           <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
+          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
           <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
           <div><span>Status</span><strong>{horse.status || horse.current_status || "-"}</strong></div>
           <div><span>Next Target</span><strong>{horse.next_target || "-"}</strong></div>

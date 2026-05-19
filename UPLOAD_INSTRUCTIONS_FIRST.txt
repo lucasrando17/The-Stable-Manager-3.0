@@ -1,16 +1,15 @@
-CREATE STABLE ONBOARDING PATCH
+HORSE SIRE / MARE PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Add create stable onboarding
+Add sire and mare to horse records
 
-This patch changes login behavior:
-- If a logged-in user has no stable_id, they see a Welcome / Create Your Stable page.
-- They can create a stable, add their name, choose admin/trainer/staff role, and then enter the app.
-- Existing users with stable_id still go straight to their stable.
+Also run this SQL in Supabase SQL Editor:
+RUN_THIS_SQL_ADD_SIRE_MARE.sql
 
-No SQL is required unless the app shows a row-level security error while creating the stable.
-If that happens, run:
-RUN_IF_ONBOARDING_RLS_FAILS.sql
-in Supabase SQL Editor.
+This patch adds:
+- Sire field when adding/editing horses
+- Mare field when adding/editing horses
+- Sire and Mare visible in horse cards/details
+- Sire and Mare visible in owner horse details
