@@ -17,7 +17,6 @@ export default async function handler(req, res) {
       html: String(message).replace(/\n/g, '<br />')
     })
   });
-
   const data = await response.json();
   if (!response.ok) return res.status(500).json({ error: data });
   return res.status(200).json({ ok: true, data });

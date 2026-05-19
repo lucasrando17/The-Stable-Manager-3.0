@@ -1,39 +1,47 @@
-# The Trotting Stable App — Final Rebuild
+# The Trotting Stable App — Final Rebuild v2
 
-This is the unified final rebuild package.
+This is the final unified rebuild requested.
 
-Includes:
-- Landing page with Stable/Owner Login and Join With Invite Code
-- Role-based app:
+Included:
+- Separate landing access points:
+  - Stable Login
+  - Owners Portal
+  - Join With Invite Code
+- Role permissions:
   - Admin
   - Trainer
   - Staff
   - Owner
-- Stable-side operations
-- Owner portal inside the same app, not replacing the trainer login
-- Horses with profile pages
-- Owners with profile pages
-- Multi-owner percentage support
-- Work with requested sectors, warm-up rules, sectionals and phone-style calendar
-- Racing nominations/results/prizemoney
-- Vet and farrier billing to owners by percentage
-- Feed, gear, inventory, staff
-- Updates with photos/videos/links
-- Updates automatically appear in owner portal and create owner notifications
-- Analytics: wins, placings, starts, prizemoney, income/expenses/net
-- Invoices auto-created from vet/farrier/finance expenses and remain editable
-- Saved toast appears at bottom of screen
+- Owner role opens owner portal only.
+- Stable roles open the stable operation side.
+- Horses, owners, multi-owner percentages and profile pages.
+- Work sectors, warm-up rules, sectionals and phone-style calendar.
+- Racing nominations, results, prizemoney and analytics.
+- Vet/Farrier expenses auto-create owner invoices by ownership percentage.
+- Auto-created invoices are fully editable.
+- Invoice module restored with:
+  - line items
+  - add/remove invoice lines
+  - print/save PDF
+  - share via phone sheet
+  - email/demo API
+- Updates with photos/videos/links.
+- Updates automatically appear in owners portal and create owner notifications.
+- Analytics: wins, placings, starts, prizemoney, income, expenses, net.
+- Saved toast appears at the bottom of the screen.
 
 Instructions:
 1. Run RUN_THIS_SQL_FIRST.sql in Supabase.
 2. Upload this folder's CONTENTS to GitHub.
-3. Commit changes.
-4. Vercel redeploys automatically.
-5. Hard refresh with CMD + SHIFT + R.
+3. Commit.
+4. Wait for Vercel redeploy.
+5. Hard refresh: CMD + SHIFT + R.
 
-Verification:
-Open src/main.jsx in GitHub and search for:
+Verification in GitHub src/main.jsx:
+- Landing
 - StableApp
 - OwnerApp
+- Invoices
+- InvoiceModal
+- ShareInvoice
 - PhoneCalendar
-- afterSave
