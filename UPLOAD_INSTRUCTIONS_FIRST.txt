@@ -1,15 +1,21 @@
-HORSE DROPDOWN BLANK OPTION FIX
+SETTINGS / ACCOUNT MANAGEMENT PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Fix blank horse dropdown options
+Add settings and account management
 
-This patch fixes:
-- Blank horse option appearing in Work/Racing/Vet/Farrier/etc dropdowns
-- Registered Name used when available
-- Stable Name used when Registered Name is blank
-- Horse rows with neither name nor stable_name are ignored in dropdowns
-- Dropdown shows "No horses added yet" if no usable horse names exist
+This patch adds:
+- Settings tab for stable/admin users
+- Account tab for owner users
+- Edit personal name / owner display name
+- Edit stable name
+- Display stable ID
+- Send password reset email from Settings
+- Security section with 2FA placeholder
+- Notifications placeholder
 
-No SQL required.
+No SQL should be needed unless saving account settings fails due to a missing profile column.
+If it fails, run:
+RUN_IF_SETTINGS_SAVE_FAILS.sql
+in Supabase SQL Editor.

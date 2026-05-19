@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   BadgeCheck, BarChart3, Calendar, ChevronRight, ClipboardList, CreditCard,
   DollarSign, Edit3, FileText, HeartPulse, Home, LogOut, Mail, Megaphone,
-  Package, Plus, Printer, Search, Share2, ShieldCheck, Trash2, Trophy,
+  Package, Plus, Printer, Search, Settings, Share2, ShieldCheck, Trash2, Trophy,
   Users, Wheat, X
 } from "lucide-react";
 import "./styles.css";
@@ -159,7 +159,7 @@ function App() {
       <button className="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18}/>Logout</button>
     </header>
     {profile.role === "owner" || loginMode === "owner"
-      ? <OwnerApp profile={profile} tab={tab} setTab={setTab} />
+      ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />
       : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />}
   </div>;
 }
@@ -470,16 +470,18 @@ function StableApp({ profile, tab, setTab, setToast }) {
       <NavButton active={tab === "updates"} onClick={() => setTab("updates")} icon={Megaphone} label="Updates" />
       <NavButton active={tab === "analytics"} onClick={() => setTab("analytics")} icon={BarChart3} label="Analytics" />
       {financeRoles.includes(profile.role) && <NavButton active={tab === "invoices"} onClick={() => setTab("invoices")} icon={FileText} label="Invoices" />}
+      <NavButton active={tab === "settings"} onClick={() => setTab("settings")} icon={Settings} label="Settings" />
     </nav>
     {tab === "dashboard" && <Dashboard stableId={profile.stable_id} setTab={setTab} />}
     {tab === "updates" && <UpdatesPanel stableId={profile.stable_id} setToast={setToast} />}
     {tab === "analytics" && <Analytics stableId={profile.stable_id} />}
     {tab === "invoices" && financeRoles.includes(profile.role) && <Invoices stableId={profile.stable_id} setToast={setToast} />}
+    {tab === "settings" && <SettingsPanel profile={profile} setToast={setToast} />}
     {moduleDefs[tab] && <GenericTable stableId={profile.stable_id} config={moduleDefs[tab]} setToast={setToast} />}
   </>;
 }
 
-function OwnerApp({ profile, tab, setTab }) {
+function OwnerApp({ profile, tab, setTab, setToast }) {
   return <>
     <nav className="nav">
       <NavButton active={tab === "ownerHome"} onClick={() => setTab("ownerHome")} icon={Home} label="Home" />
@@ -487,14 +489,121 @@ function OwnerApp({ profile, tab, setTab }) {
       <NavButton active={tab === "ownerUpdates"} onClick={() => setTab("ownerUpdates")} icon={Megaphone} label="Updates" />
       <NavButton active={tab === "ownerCalendar"} onClick={() => setTab("ownerCalendar")} icon={Calendar} label="Calendar" />
       <NavButton active={tab === "ownerInvoices"} onClick={() => setTab("ownerInvoices")} icon={CreditCard} label="Bills" />
+      <NavButton active={tab === "ownerSettings"} onClick={() => setTab("ownerSettings")} icon={Settings} label="Account" />
     </nav>
     {tab === "ownerHome" && <OwnerHome profile={profile} setTab={setTab} />}
     {tab === "ownerHorses" && <OwnerHorses profile={profile} />}
     {tab === "ownerUpdates" && <OwnerUpdates profile={profile} />}
     {tab === "ownerCalendar" && <OwnerCalendar profile={profile} />}
     {tab === "ownerInvoices" && <OwnerInvoices profile={profile} />}
+    {tab === "ownerSettings" && <SettingsPanel profile={profile} setToast={setToast} ownerMode />}
   </>;
 }
+
+
+function SettingsPanel({ profile, setToast, ownerMode = false }) {
+  const [name, setName] = useState(profile.full_name || profile.owner_name || "");
+  const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
+  const [stableName, setStableName] = useState(profile.stables?.name || "");
+  const [saving, setSaving] = useState(false);
+
+  async function saveAccount(event) {
+    event.preventDefault();
+    setSaving(true);
+
+    const payload = {
+      full_name: name.trim(),
+      owner_name: ownerName.trim() || name.trim()
+    };
+
+    const { error } = await supabase.from("profiles").update(payload).eq("id", profile.id);
+
+    if (error) setToast(error.message);
+    else setToast("Account settings saved.");
+
+    setSaving(false);
+  }
+
+  async function saveStable(event) {
+    event.preventDefault();
+
+    if (!profile.stable_id) {
+      setToast("No stable is linked to this account yet.");
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase.from("stables").update({ name: stableName.trim() }).eq("id", profile.stable_id);
+
+    if (error) setToast(error.message);
+    else setToast("Stable settings saved.");
+
+    setSaving(false);
+  }
+
+  async function sendPasswordReset() {
+    const email = profile.email || profile.user_email || "";
+    if (!email) {
+      setToast("No email address found for this account.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://thetrottingstableapp.com"
+    });
+
+    if (error) setToast(error.message);
+    else setToast("Password reset email sent.");
+  }
+
+  return <main className="page">
+    <section className="module-header">
+      <div className="module-icon"><Settings size={24}/></div>
+      <h2>{ownerMode ? "Account" : "Settings"}</h2>
+    </section>
+
+    <section className="settings-grid">
+      <article className="settings-card">
+        <h3>Account</h3>
+        <p>Manage your personal login profile.</p>
+        <form className="form-grid" onSubmit={saveAccount}>
+          <label className="field"><span>Name</span><input value={name} onChange={e => setName(e.target.value)} /></label>
+          <label className="field"><span>Owner Display Name</span><input value={ownerName} onChange={e => setOwnerName(e.target.value)} /></label>
+          <label className="field"><span>Email</span><input value={profile.email || ""} disabled /></label>
+          <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Account"}</button>
+        </form>
+      </article>
+
+      {!ownerMode && <article className="settings-card">
+        <h3>Stable</h3>
+        <p>Basic stable identity and branding. Logo upload can be added next.</p>
+        <form className="form-grid" onSubmit={saveStable}>
+          <label className="field"><span>Stable Name</span><input value={stableName} onChange={e => setStableName(e.target.value)} /></label>
+          <label className="field"><span>Stable ID</span><input value={profile.stable_id || ""} disabled /></label>
+          <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Stable"}</button>
+        </form>
+      </article>}
+
+      <article className="settings-card">
+        <h3>Security</h3>
+        <p>Password reset works now. Two-factor authentication will be added here next.</p>
+        <div className="settings-actions">
+          <button className="ghost" onClick={sendPasswordReset}>Send Password Reset Email</button>
+          <button className="ghost" disabled>Two-Factor Authentication — Coming Next</button>
+        </div>
+      </article>
+
+      <article className="settings-card">
+        <h3>Notifications</h3>
+        <p>Email notifications for updates, invoices, race reminders and owner notices will live here.</p>
+        <div className="settings-actions">
+          <button className="ghost" disabled>Email Preferences — Coming Soon</button>
+        </div>
+      </article>
+    </section>
+  </main>;
+}
+
 
 function Dashboard({ stableId, setTab }) {
   const [counts, setCounts] = useState({});
