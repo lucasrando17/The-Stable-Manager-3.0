@@ -45,3 +45,7 @@ Verification in GitHub src/main.jsx:
 - InvoiceModal
 - ShareInvoice
 - PhoneCalendar
+
+
+Build fix:
+- Resolved duplicate MediaPreview function declaration that caused Vercel build failure.
