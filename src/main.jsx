@@ -114,11 +114,21 @@ function App() {
   }, [toast]);
 
   async function loadProfile() {
-    const { data, error } = await supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).single();
+    const { data, error } = await supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).maybeSingle();
+
     if (error) {
-      setToast("Login works, but this account is not linked to a profile.");
+      setToast("Login works, but profile setup needs to be completed.");
+      setProfile({ id: session.user.id, email: session.user.email, role: "admin", stable_id: null, stables: null });
+      setStable(null);
       return;
     }
+
+    if (!data) {
+      setProfile({ id: session.user.id, email: session.user.email, role: "admin", stable_id: null, stables: null });
+      setStable(null);
+      return;
+    }
+
     setProfile(data);
     setStable(data.stables);
     setTab(data.role === "owner" || loginMode === "owner" ? "ownerHome" : "dashboard");
@@ -132,7 +142,11 @@ function App() {
   if (!session) return <Landing setEntry={setEntry} />;
 
   if (!profile) {
-    return <main className="page"><section className="card"><h2>Profile not linked</h2><p>Check Supabase profiles for this user.</p><button className="primary" onClick={() => supabase.auth.signOut()}>Logout</button></section></main>;
+    return <main className="page"><section className="card"><h2>Loading profile...</h2><p>Please wait while your account is checked.</p></section></main>;
+  }
+
+  if (!profile.stable_id) {
+    return <CreateStableOnboarding session={session} setProfile={setProfile} setStable={setStable} setToast={setToast} />;
   }
 
   return <div className="app">
@@ -148,6 +162,117 @@ function App() {
       ? <OwnerApp profile={profile} tab={tab} setTab={setTab} />
       : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />}
   </div>;
+}
+
+
+
+function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
+  const [stableName, setStableName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState("admin");
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  async function createStable(event) {
+    event.preventDefault();
+
+    if (!stableName.trim()) {
+      setToast("Enter your stable name.");
+      return;
+    }
+
+    if (!fullName.trim()) {
+      setToast("Enter your name.");
+      return;
+    }
+
+    setSaving(true);
+
+    const { data: stableRow, error: stableError } = await supabase
+      .from("stables")
+      .insert({ name: stableName.trim() })
+      .select()
+      .single();
+
+    if (stableError) {
+      setSaving(false);
+      setToast(stableError.message);
+      return;
+    }
+
+    const profilePayload = {
+      id: session.user.id,
+      stable_id: stableRow.id,
+      role,
+      full_name: fullName.trim(),
+      owner_name: fullName.trim()
+    };
+
+    const { data: profileRow, error: profileError } = await supabase
+      .from("profiles")
+      .upsert(profilePayload)
+      .select("*, stables(*)")
+      .single();
+
+    if (profileError) {
+      setSaving(false);
+      setToast(profileError.message);
+      return;
+    }
+
+    setProfile(profileRow);
+    setStable(stableRow);
+    setToast("Stable created.");
+    setSaving(false);
+  }
+
+  return <main className="onboarding-screen">
+    <PhotoReel />
+    <section className="onboarding-card">
+      <p className="eyebrow">Welcome to The Trotting Stable App</p>
+      <h1>Create your stable</h1>
+      <p className="onboarding-lead">
+        Set up your stable first. Once this is complete, you can add horses, owners, staff, work entries, invoices and updates.
+      </p>
+
+      <div className="onboarding-steps">
+        <button className={step === 1 ? "active" : ""} onClick={() => setStep(1)}>1. Stable</button>
+        <button className={step === 2 ? "active" : ""} onClick={() => setStep(2)}>2. What comes next</button>
+      </div>
+
+      {step === 1 && <form className="form-grid" onSubmit={createStable}>
+        <label className="field">
+          <span>Stable Name</span>
+          <input value={stableName} onChange={e => setStableName(e.target.value)} placeholder="Example: Rando Racing" />
+        </label>
+
+        <label className="field">
+          <span>Your Name</span>
+          <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Example: Lucas Rando" />
+        </label>
+
+        <label className="field">
+          <span>Your Role</span>
+          <select value={role} onChange={e => setRole(e.target.value)}>
+            <option value="admin">Admin / Head Trainer</option>
+            <option value="trainer">Trainer</option>
+            <option value="staff">Staff</option>
+          </select>
+        </label>
+
+        <button className="primary full" disabled={saving}>{saving ? "Creating stable..." : "Create Stable"}</button>
+      </form>}
+
+      {step === 2 && <section className="next-steps-grid">
+        <article><strong>Add horses</strong><span>Create horse profiles with age, sex, trainer, status and targets.</span></article>
+        <article><strong>Add owners</strong><span>Create owner records and assign ownership percentages.</span></article>
+        <article><strong>Invite users</strong><span>Invite staff, drivers, owners or guests once team invites are enabled.</span></article>
+        <article><strong>Start recording</strong><span>Use work, racing, vet, farrier, feed, gear, invoices and updates.</span></article>
+      </section>}
+
+      <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
+    </section>
+  </main>;
 }
 
 
