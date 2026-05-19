@@ -1,25 +1,15 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   const { to, subject, message } = req.body || {};
-  if (!to || !subject || !message) {
-    return res.status(400).json({ error: 'Missing to, subject, or message' });
-  }
+  if (!to || !subject || !message) return res.status(400).json({ error: 'Missing to, subject or message' });
 
   if (!process.env.RESEND_API_KEY || !process.env.INVOICE_FROM_EMAIL) {
-    return res.status(200).json({
-      ok: true,
-      mode: 'demo',
-      message: `Demo only: email would be sent to ${to}.`
-    });
+    return res.status(200).json({ ok: true, mode: 'demo', message: `Demo only: email would be sent to ${to}.` });
   }
 
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: process.env.INVOICE_FROM_EMAIL,
       to,

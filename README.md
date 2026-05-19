@@ -1,43 +1,39 @@
-# The Trotting Stable Owners Portal Build
+# The Trotting Stable App — Final Rebuild
 
-This is a separate owner-facing portal package.
-
-Purpose:
-- Owners see only their horses
-- Owners see updates, media, invoices, race hub, calendar and horse pages
-- It is not the internal stable management app
+This is the unified final rebuild package.
 
 Includes:
-- owner login
-- owner profile linking through `owner_portal_profiles`
-- dashboard
-- horse list
-- horse profile page
-- updates feed
-- photos/videos/links from updates
-- media vault
-- race day hub
-- invoices and financials
-- phone-style calendar
-- owner notifications support
+- Landing page with Stable/Owner Login and Join With Invite Code
+- Role-based app:
+  - Admin
+  - Trainer
+  - Staff
+  - Owner
+- Stable-side operations
+- Owner portal inside the same app, not replacing the trainer login
+- Horses with profile pages
+- Owners with profile pages
+- Multi-owner percentage support
+- Work with requested sectors, warm-up rules, sectionals and phone-style calendar
+- Racing nominations/results/prizemoney
+- Vet and farrier billing to owners by percentage
+- Feed, gear, inventory, staff
+- Updates with photos/videos/links
+- Updates automatically appear in owner portal and create owner notifications
+- Analytics: wins, placings, starts, prizemoney, income/expenses/net
+- Invoices auto-created from vet/farrier/finance expenses and remain editable
+- Saved toast appears at bottom of screen
 
-Install:
-1. Run `RUN_THIS_SQL_FOR_OWNERS_PORTAL.sql` in Supabase.
-2. Upload this folder's CONTENTS to a GitHub repo or separate Vercel project.
-3. Add Vercel env vars:
-   - VITE_SUPABASE_URL
-   - VITE_SUPABASE_ANON_KEY
-4. Deploy.
-
-Important:
-To link an owner login, add a row to `owner_portal_profiles`:
-- user_id = the Supabase Auth user UUID
-- stable_id = your stable UUID
-- owner_name = must match the `horse_owners.owner_name`
-- owner_email / owner_phone optional
+Instructions:
+1. Run RUN_THIS_SQL_FIRST.sql in Supabase.
+2. Upload this folder's CONTENTS to GitHub.
+3. Commit changes.
+4. Vercel redeploys automatically.
+5. Hard refresh with CMD + SHIFT + R.
 
 Verification:
-Open `src/main.jsx` and search for:
-- `OwnerDashboard`
-- `HorsePortalPage`
-- `OwnerCalendar`
+Open src/main.jsx in GitHub and search for:
+- StableApp
+- OwnerApp
+- PhoneCalendar
+- afterSave
