@@ -618,7 +618,6 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
       </article>
     </section>
   </main>;
-}
 
 
 function Dashboard({ stableId, setTab }) {
