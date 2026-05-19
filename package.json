@@ -1,7 +1,7 @@
 {
-  "name": "trotting-stable-auth-app",
+  "name": "trotting-stable-product-build",
   "private": true,
-  "version": "7.1.0",
+  "version": "8.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

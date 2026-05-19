@@ -1,18 +1,23 @@
-# The Trotting Stable App — Auth Connected
+# The Trotting Stable App — Product Build
 
-This version adds:
-- Supabase login
-- protected access
-- stable_id filtered cloud data
-- horses
-- work with warm-up and jogger machine fields
-- single-horse work history isolator
-- finance
+Includes:
+- public landing/preview page
+- rotating login/landing photo reel
+- login
+- invite-code signup screen
+- stable-secured Supabase app
+- horses, work, racing, vet, feed, finance, owners, inventory, staff
 - invoices with print/share
-- Resend email API placeholder
+- work warm-up and jogger machine fields
+- single-horse work history isolator
 
-Required Vercel env vars:
-- VITE_SUPABASE_URL
-- VITE_SUPABASE_ANON_KEY
+Before deploying:
+1. Run SUPABASE_UPGRADE_SQL.sql in Supabase SQL Editor.
+2. Upload the contents of this folder to GitHub.
+3. Confirm Vercel env vars:
+   - VITE_SUPABASE_URL
+   - VITE_SUPABASE_ANON_KEY
 
-Upload the CONTENTS of this folder to GitHub, not the folder itself.
+For photos:
+- add images to public/login-photos/
+- name them photo-1.jpg, photo-2.jpg, etc.
