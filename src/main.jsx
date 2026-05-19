@@ -541,7 +541,7 @@ function GenericTable({ stableId, config, setToast }) {
   useEffect(() => {
     if (!stableId) return;
     load();
-    supabase.from("horses").select("name,stable_name").eq("stable_id", stableId).order("name").then(({ data }) => setHorses(data || []));
+    supabase.from("horses").select("name,stable_name").eq("stable_id", stableId).order("name").then(({ data }) => setHorses(validHorseOptions(data || [])));
     supabase.from("owners").select("name,email,phone").eq("stable_id", stableId).order("name").then(({ data }) => setOwners(data || []));
   }, [stableId, config.table]);
 
@@ -557,7 +557,7 @@ function GenericTable({ stableId, config, setToast }) {
       if (type === "date") out[key] = new Date().toISOString().slice(0, 10);
       else if (type === "number") out[key] = "";
       else if (type === "select") out[key] = options[0];
-      else if (type === "horseName") out[key] = horseDisplayName(horses[0]) || "";
+      else if (type === "horseName") out[key] = horseDisplayName(validHorseOptions(horses)[0]) || "";
       else if (type === "ownerName") out[key] = owners[0]?.name || "";
       else out[key] = "";
     });
@@ -1379,7 +1379,7 @@ function Input({ type, value, options, horses, owners, stableId, onChange }) {
   if (type === "videoUpload") return <MediaUploadInput value={value} stableId={stableId} accept="video/*" kind="video" onChange={onChange} />;
   if (type === "textarea" || type === "conditionalWarmup") return <textarea value={value} onChange={event => onChange(event.target.value)} />;
   if (type === "select") return <select value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option}>{option}</option>)}</select>;
-  if (type === "horseName") return <select value={value} onChange={event => onChange(event.target.value)}>{horses.map(horse => <option key={horse.name}>{horse.name}</option>)}</select>;
+  if (type === "horseName") { const options = validHorseOptions(horses); return <select value={value} onChange={event => onChange(event.target.value)}>{options.length ? options.map(horse => { const display = horseDisplayName(horse); return <option key={horse.id || horse.name || horse.stable_name || display} value={display}>{display}</option>; }) : <option value="">No horses added yet</option>}</select>; }
   if (type === "ownerName") return <select value={value} onChange={event => onChange(event.target.value)}>{owners.map(owner => <option key={owner.name}>{owner.name}</option>)}</select>;
   return <input type={type} value={value} onChange={event => onChange(event.target.value)} />;
 }
@@ -1419,8 +1419,14 @@ function splitLines(value) {
 
 function horseDisplayName(horse) {
   if (!horse) return "";
-  if (typeof horse === "string") return horse;
-  return horse.name || horse.stable_name || "";
+  if (typeof horse === "string") return horse.trim();
+  const registeredName = String(horse.name || "").trim();
+  const stableName = String(horse.stable_name || "").trim();
+  return registeredName || stableName || "";
+}
+
+function validHorseOptions(horses) {
+  return (horses || []).filter(horse => horseDisplayName(horse));
 }
 
 function labelize(value) {

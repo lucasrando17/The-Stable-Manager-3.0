@@ -1,11 +1,15 @@
-HORSE STABLE NAME FALLBACK PATCH
+HORSE DROPDOWN BLANK OPTION FIX
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Use stable name as horse fallback
+Fix blank horse dropdown options
 
-This patch changes horse selection dropdowns:
-- Work, vet/treatments, farrier, feed, gear, race records, invoices and updates now show the horse's Registered Name if entered.
-- If Registered Name is blank, they show/use Stable Name instead.
-- This allows young/unregistered horses to still be selectable throughout the app.
+This patch fixes:
+- Blank horse option appearing in Work/Racing/Vet/Farrier/etc dropdowns
+- Registered Name used when available
+- Stable Name used when Registered Name is blank
+- Horse rows with neither name nor stable_name are ignored in dropdowns
+- Dropdown shows "No horses added yet" if no usable horse names exist
+
+No SQL required.
