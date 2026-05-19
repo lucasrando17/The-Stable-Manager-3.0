@@ -538,21 +538,20 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
 
     setSaving(true);
     const nextName = stableName.trim();
-    const { data, error } = await supabase
-      .from("stables")
-      .update({ name: nextName })
-      .eq("id", profile.stable_id)
-      .select()
-      .single();
+    const { error } = await supabase
+  .from("stables")
+  .update({
+    name: stableName.trim()
+  })
+  .eq("id", profile.stable_id);;
 
-    if (error) {
-      setToast(error.message);
-    } else {
-      const updatedStable = data || { ...(stable || {}), id: profile.stable_id, name: nextName };
-      setStable?.(updatedStable);
-      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
-      setStableName(updatedStable.name || nextName);
-      setToast("Stable settings saved.");
+   if (error) {
+  setToast(error.message);
+} else {
+  setToast("Stable settings saved.");
+  setStable?.(current => ({ ...(current || {}), id: profile.stable_id, name: stableName.trim() }));
+setProfile?.(current => current ? { ...current, stables: { ...(current.stables || {}), id: profile.stable_id, name: stableName.trim() } } : current);;
+}
     }
 
     setSaving(false);
