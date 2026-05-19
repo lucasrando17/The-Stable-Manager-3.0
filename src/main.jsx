@@ -570,7 +570,7 @@ setProfile?.(current => current ? { ...current, stables: { ...(current.stables |
 
     if (error) setToast(error.message);
     else setToast("Password reset email sent.");
-  }
+  
 
   return <main className="page">
     <section className="module-header">
