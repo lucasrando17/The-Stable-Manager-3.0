@@ -1,3 +1,5 @@
+# FINAL UPLOAD VERSION
+
 # The Trotting Stable App — Final Clean Rebuild
 
 This is a clean rebuild from scratch, created to replace the broken duplicate-function builds.

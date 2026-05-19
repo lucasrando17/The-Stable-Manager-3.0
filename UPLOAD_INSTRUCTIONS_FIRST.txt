@@ -1,0 +1,32 @@
+THE STABLE MANAGER - FINAL CLEAN REBUILD
+
+Upload the CONTENTS of this folder to GitHub.
+
+Your GitHub repo root should contain:
+api/
+public/
+src/
+index.html
+package.json
+package-lock.json
+vite.config.js
+vercel.json
+README.md
+RUN_THIS_SQL_FIRST.sql
+
+Do NOT upload this outer folder itself.
+
+Vercel settings:
+Framework Preset: Vite
+Root Directory: ./
+Install Command: npm install
+Build Command: npm run build
+Output Directory: dist
+
+Environment variables required:
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+
+Optional:
+RESEND_API_KEY
+INVOICE_FROM_EMAIL
