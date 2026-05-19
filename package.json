@@ -1,7 +1,7 @@
 {
-  "name": "trotting-stable-premium-ui",
+  "name": "trotting-stable-panels-fix",
   "private": true,
-  "version": "8.1.0",
+  "version": "8.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

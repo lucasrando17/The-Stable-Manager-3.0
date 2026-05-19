@@ -1,25 +1,16 @@
-# The Trotting Stable App — Premium UI Build
+# The Trotting Stable App — Panels Fix
 
-This is a frontend upgrade on top of your working Supabase auth/RLS setup.
+Adds/fixes:
+- Owner Portal panel
+- Analytics panel
+- Gear panel
+- Staff panel
+- Inventory panel
+- Updates panel
+- working database SQL for the above panels
 
-Includes:
-- Public landing/preview page
-- Login and invite-code signup screens
-- Rotating login/landing photo reel
-- Premium dashboard
-- Horses
-- Work with warm-up + jogger machine records
-- Single-horse work history isolator
-- Racing
-- Vet
-- Feed
-- Finance
-- Owners
-- Staff
-- Inventory
-- Updates
-- Invoices with print/share/email demo UI
-
-Upload the CONTENTS of this folder to GitHub.
-
-If any tab says a table/policy is missing, run OPTIONAL_SQL_IF_NEEDED.sql in Supabase.
+Instructions:
+1. Run RUN_THIS_SQL_FIRST.sql in Supabase SQL Editor.
+2. Upload the CONTENTS of this folder to GitHub.
+3. Commit changes.
+4. Vercel redeploys automatically.
