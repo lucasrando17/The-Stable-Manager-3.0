@@ -1,7 +1,7 @@
 {
-  "name": "trotting-stable-final-rebuild-v2",
+  "name": "trotting-stable-final-clean-rebuild",
   "private": true,
-  "version": "11.0.0",
+  "version": "12.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
