@@ -1,7 +1,7 @@
 {
-  "name": "trotting-stable-clean-full-rebuild",
+  "name": "trotting-stable-owners-portal-build",
   "private": true,
-  "version": "9.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
