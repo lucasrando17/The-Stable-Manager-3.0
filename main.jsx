@@ -1,3 +1,4 @@
+// COMPLETE FINAL REBUILD V13
 
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -5,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   BadgeCheck, BarChart3, Calendar, ChevronRight, ClipboardList, CreditCard,
   DollarSign, Edit3, FileText, HeartPulse, Home, LogOut, Mail, Megaphone,
-  Package, Plus, Printer, Search, Share2, ShieldCheck, Trash2, Trophy,
+  Package, Plus, Printer, Search, Settings, Share2, ShieldCheck, Trash2, Trophy,
   Users, Wheat, X
 } from "lucide-react";
 import "./styles.css";
@@ -23,8 +24,8 @@ const financeRoles = ["admin", "trainer"];
 const moduleDefs = {
   horses: {
     table: "horses", title: "Horses", icon: BadgeCheck, profile: "horse",
-    fields: [["name","Registered Name","text"],["stable_name","Stable Name","text"],["profile_photo_url","Profile Photo URL","text"],["age","Age","number"],["sex","Sex","select",["Gelding","Mare","Horse","Colt","Filly"]],["trainer","Trainer","text"],["status","Status","select",["Racing","Building","Trialling","Spelling","Rehab","Sold","Retired"]],["current_status","Current Status","text"],["next_target","Next Target","text"],["notes","Notes","textarea"]],
-    display: ["stable_name","age","sex","trainer","status","current_status","next_target"]
+    fields: [["name","Registered Name","text"],["stable_name","Stable Name","text"],["profile_photo_url","Profile Photo URL","text"],["sire","Sire","text"],["mare","Mare","text"],["age","Age","number"],["sex","Sex","select",["Gelding","Mare","Horse","Colt","Filly"]],["trainer","Trainer","text"],["status","Status","select",["Racing","Building","Trialling","Spelling","Rehab","Sold","Retired"]],["current_status","Current Status","text"],["next_target","Next Target","text"],["notes","Notes","textarea"]],
+    display: ["stable_name","sire","mare","age","sex","trainer","status","current_status","next_target"]
   },
   owners: {
     table: "owners", title: "Owners", icon: Users, profile: "owner",
@@ -87,6 +88,7 @@ function App() {
   const [tab, setTab] = useState("dashboard");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -96,6 +98,7 @@ function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession) setEntry("app");
+      if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -111,24 +114,39 @@ function App() {
   }, [toast]);
 
   async function loadProfile() {
-    const { data, error } = await supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).single();
+    const { data, error } = await supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).maybeSingle();
+
     if (error) {
-      setToast("Login works, but this account is not linked to a profile.");
+      setToast("Login works, but profile setup needs to be completed.");
+      setProfile({ id: session.user.id, email: session.user.email, role: "admin", stable_id: null, stables: null });
+      setStable(null);
       return;
     }
+
+    if (!data) {
+      setProfile({ id: session.user.id, email: session.user.email, role: "admin", stable_id: null, stables: null });
+      setStable(null);
+      return;
+    }
+
     setProfile(data);
     setStable(data.stables);
     setTab(data.role === "owner" || loginMode === "owner" ? "ownerHome" : "dashboard");
   }
 
   if (loading) return <div className="center">Loading...</div>;
+  if (session && passwordRecovery) return <PasswordResetForm onDone={() => setPasswordRecovery(false)} setToast={setToast} />;
   if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "invite") return <InviteSignup onBack={() => setEntry("landing")} setToast={setToast} />;
   if (!session) return <Landing setEntry={setEntry} />;
 
   if (!profile) {
-    return <main className="page"><section className="card"><h2>Profile not linked</h2><p>Check Supabase profiles for this user.</p><button className="primary" onClick={() => supabase.auth.signOut()}>Logout</button></section></main>;
+    return <main className="page"><section className="card"><h2>Loading profile...</h2><p>Please wait while your account is checked.</p></section></main>;
+  }
+
+  if (!profile.stable_id) {
+    return <CreateStableOnboarding session={session} setProfile={setProfile} setStable={setStable} setToast={setToast} />;
   }
 
   return <div className="app">
@@ -141,10 +159,173 @@ function App() {
       <button className="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18}/>Logout</button>
     </header>
     {profile.role === "owner" || loginMode === "owner"
-      ? <OwnerApp profile={profile} tab={tab} setTab={setTab} />
-      : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} />}
+      ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />
+      : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />}
   </div>;
 }
+
+
+
+function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
+  const [stableName, setStableName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState("admin");
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  async function createStable(event) {
+    event.preventDefault();
+
+    if (!stableName.trim()) {
+      setToast("Enter your stable name.");
+      return;
+    }
+
+    if (!fullName.trim()) {
+      setToast("Enter your name.");
+      return;
+    }
+
+    setSaving(true);
+
+    const { data: stableRow, error: stableError } = await supabase
+      .from("stables")
+      .insert({ name: stableName.trim() })
+      .select()
+      .single();
+
+    if (stableError) {
+      setSaving(false);
+      setToast(stableError.message);
+      return;
+    }
+
+    const profilePayload = {
+      id: session.user.id,
+      stable_id: stableRow.id,
+      role,
+      full_name: fullName.trim(),
+      owner_name: fullName.trim()
+    };
+
+    const { data: profileRow, error: profileError } = await supabase
+      .from("profiles")
+      .upsert(profilePayload)
+      .select("*, stables(*)")
+      .single();
+
+    if (profileError) {
+      setSaving(false);
+      setToast(profileError.message);
+      return;
+    }
+
+    setProfile(profileRow);
+    setStable(stableRow);
+    setToast("Stable created.");
+    setSaving(false);
+  }
+
+  return <main className="onboarding-screen">
+    <PhotoReel />
+    <section className="onboarding-card">
+      <p className="eyebrow">Welcome to The Trotting Stable App</p>
+      <h1>Create your stable</h1>
+      <p className="onboarding-lead">
+        Set up your stable first. Once this is complete, you can add horses, owners, staff, work entries, invoices and updates.
+      </p>
+
+      <div className="onboarding-steps">
+        <button className={step === 1 ? "active" : ""} onClick={() => setStep(1)}>1. Stable</button>
+        <button className={step === 2 ? "active" : ""} onClick={() => setStep(2)}>2. What comes next</button>
+      </div>
+
+      {step === 1 && <form className="form-grid" onSubmit={createStable}>
+        <label className="field">
+          <span>Stable Name</span>
+          <input value={stableName} onChange={e => setStableName(e.target.value)} placeholder="Example: Rando Racing" />
+        </label>
+
+        <label className="field">
+          <span>Your Name</span>
+          <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Example: Lucas Rando" />
+        </label>
+
+        <label className="field">
+          <span>Your Role</span>
+          <select value={role} onChange={e => setRole(e.target.value)}>
+            <option value="admin">Admin / Head Trainer</option>
+            <option value="trainer">Trainer</option>
+            <option value="staff">Staff</option>
+          </select>
+        </label>
+
+        <button className="primary full" disabled={saving}>{saving ? "Creating stable..." : "Create Stable"}</button>
+      </form>}
+
+      {step === 2 && <section className="next-steps-grid">
+        <article><strong>Add horses</strong><span>Create horse profiles with age, sex, trainer, status and targets.</span></article>
+        <article><strong>Add owners</strong><span>Create owner records and assign ownership percentages.</span></article>
+        <article><strong>Invite users</strong><span>Invite staff, drivers, owners or guests once team invites are enabled.</span></article>
+        <article><strong>Start recording</strong><span>Use work, racing, vet, farrier, feed, gear, invoices and updates.</span></article>
+      </section>}
+
+      <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
+    </section>
+  </main>;
+}
+
+
+function PasswordResetForm({ onDone, setToast }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setMessage("");
+
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirm) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setToast?.("Password updated. You can now log in.");
+    setMessage("Password updated. You can now log in.");
+
+    setTimeout(async () => {
+      await supabase.auth.signOut();
+      onDone?.();
+    }, 1200);
+  }
+
+  return <main className="login-screen">
+    <PhotoReel />
+    <section className="login-card">
+      <h1>Reset Password</h1>
+      <p>Create a new password for your account.</p>
+      <form onSubmit={submit}>
+        <label>New Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label>Confirm New Password<input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
+        <button className="primary full">Update Password</button>
+      </form>
+      {message && <p className="login-message">{message}</p>}
+    </section>
+  </main>;
+}
+
 
 function Landing({ setEntry }) {
   return <main className="landing">
@@ -188,10 +369,27 @@ function Login({ mode, onBack, setLoginMode }) {
 
   async function submit(event) {
     event.preventDefault();
-    setLoginMode(mode);
     setMessage("");
+    setLoginMode?.(mode);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setMessage(error.message);
+  }
+
+  async function resetPassword() {
+    setMessage("");
+
+    if (!email) {
+      setMessage("Enter your email address first, then click Forgot password.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://thetrottingstableapp.com"
+    });
+
+    if (error) setMessage(error.message);
+    else setMessage("Password reset email sent. Please check your inbox.");
   }
 
   return <main className="login-screen">
@@ -200,15 +398,22 @@ function Login({ mode, onBack, setLoginMode }) {
       <button className="text" onClick={onBack}>← Back</button>
       <h1>{mode === "owner" ? "Owners Portal" : "Stable Login"}</h1>
       <p>{mode === "owner" ? "Owner-only access to horses, updates, invoices and calendar." : "Trainer/staff access to the stable operations side."}</p>
+
       <form onSubmit={submit}>
         <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
         <button className="primary full">Login</button>
       </form>
-      {message && <p className="error">{message}</p>}
+
+      <div className="login-options always-visible-login-options">
+        <button type="button" className="text forgot-password-link" onClick={resetPassword}>Forgot password?</button>
+      </div>
+
+      {message && <p className="login-message">{message}</p>}
     </section>
   </main>;
 }
+
 
 function InviteSignup({ onBack, setToast }) {
   const [code, setCode] = useState("");
@@ -218,7 +423,6 @@ function InviteSignup({ onBack, setToast }) {
 
   async function submit(event) {
     event.preventDefault();
-    setLoginMode(mode);
     const { data: invite, error: inviteError } = await supabase.from("invite_codes").select("*").eq("code", code.trim()).is("used_by", null).single();
     if (inviteError || !invite) {
       setToast("Invalid or used invite code.");
@@ -256,7 +460,7 @@ function InviteSignup({ onBack, setToast }) {
   </main>;
 }
 
-function StableApp({ profile, tab, setTab, setToast }) {
+function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfile }) {
   const hidden = profile.role === "staff" ? ["finance", "staff"] : [];
   return <>
     <nav className="nav">
@@ -265,16 +469,18 @@ function StableApp({ profile, tab, setTab, setToast }) {
       <NavButton active={tab === "updates"} onClick={() => setTab("updates")} icon={Megaphone} label="Updates" />
       <NavButton active={tab === "analytics"} onClick={() => setTab("analytics")} icon={BarChart3} label="Analytics" />
       {financeRoles.includes(profile.role) && <NavButton active={tab === "invoices"} onClick={() => setTab("invoices")} icon={FileText} label="Invoices" />}
+      <NavButton active={tab === "settings"} onClick={() => setTab("settings")} icon={Settings} label="Settings" />
     </nav>
     {tab === "dashboard" && <Dashboard stableId={profile.stable_id} setTab={setTab} />}
     {tab === "updates" && <UpdatesPanel stableId={profile.stable_id} setToast={setToast} />}
     {tab === "analytics" && <Analytics stableId={profile.stable_id} />}
     {tab === "invoices" && financeRoles.includes(profile.role) && <Invoices stableId={profile.stable_id} setToast={setToast} />}
+    {tab === "settings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} />}
     {moduleDefs[tab] && <GenericTable stableId={profile.stable_id} config={moduleDefs[tab]} setToast={setToast} />}
   </>;
 }
 
-function OwnerApp({ profile, tab, setTab }) {
+function OwnerApp({ profile, tab, setTab, setToast, stable, setStable, setProfile }) {
   return <>
     <nav className="nav">
       <NavButton active={tab === "ownerHome"} onClick={() => setTab("ownerHome")} icon={Home} label="Home" />
@@ -282,13 +488,153 @@ function OwnerApp({ profile, tab, setTab }) {
       <NavButton active={tab === "ownerUpdates"} onClick={() => setTab("ownerUpdates")} icon={Megaphone} label="Updates" />
       <NavButton active={tab === "ownerCalendar"} onClick={() => setTab("ownerCalendar")} icon={Calendar} label="Calendar" />
       <NavButton active={tab === "ownerInvoices"} onClick={() => setTab("ownerInvoices")} icon={CreditCard} label="Bills" />
+      <NavButton active={tab === "ownerSettings"} onClick={() => setTab("ownerSettings")} icon={Settings} label="Account" />
     </nav>
     {tab === "ownerHome" && <OwnerHome profile={profile} setTab={setTab} />}
     {tab === "ownerHorses" && <OwnerHorses profile={profile} />}
     {tab === "ownerUpdates" && <OwnerUpdates profile={profile} />}
     {tab === "ownerCalendar" && <OwnerCalendar profile={profile} />}
     {tab === "ownerInvoices" && <OwnerInvoices profile={profile} />}
+    {tab === "ownerSettings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} ownerMode />}
   </>;
+}
+
+
+function SettingsPanel({ profile, stable, setStable, setProfile, setToast, ownerMode = false }) {
+  const [name, setName] = useState(profile.full_name || profile.owner_name || "");
+  const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
+  const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
+  const [saving, setSaving] = useState(false);
+
+  async function saveAccount(event) {
+    event.preventDefault();
+    setSaving(true);
+
+    const payload = {
+      full_name: name.trim(),
+      owner_name: ownerName.trim() || name.trim()
+    };
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("id", profile.id);
+
+    if (error) {
+      setToast(error.message);
+    } else {
+      setProfile?.(current => current ? { ...current, ...payload } : current);
+      setToast("Account settings saved.");
+    }
+
+    setSaving(false);
+  }
+
+  async function saveStable(event) {
+    event.preventDefault();
+
+    if (!profile.stable_id) {
+      setToast("No stable is linked to this account yet.");
+      return;
+    }
+
+    const nextName = stableName.trim();
+
+    if (!nextName) {
+      setToast("Stable name cannot be blank.");
+      return;
+    }
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("stables")
+      .update({ name: nextName })
+      .eq("id", profile.stable_id);
+
+    if (error) {
+      setToast(error.message);
+    } else {
+      const updatedStable = {
+        ...(stable || {}),
+        id: profile.stable_id,
+        name: nextName
+      };
+
+      setStable?.(updatedStable);
+      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
+      setStableName(nextName);
+      setToast("Stable settings saved.");
+    }
+
+    setSaving(false);
+  }
+
+  async function sendPasswordReset() {
+    const email = profile.email || profile.user_email || "";
+
+    if (!email) {
+      setToast("No email address found for this account.");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://thetrottingstableapp.com"
+    });
+
+    if (error) {
+      setToast(error.message);
+    } else {
+      setToast("Password reset email sent.");
+    }
+  }
+
+  return <main className="page">
+    <section className="module-header">
+      <div className="module-icon"><Settings size={24}/></div>
+      <h2>{ownerMode ? "Account" : "Settings"}</h2>
+    </section>
+
+    <section className="settings-grid">
+      <article className="settings-card">
+        <h3>Account</h3>
+        <p>Manage your personal login profile.</p>
+        <form className="form-grid" onSubmit={saveAccount}>
+          <label className="field"><span>Name</span><input value={name} onChange={event => setName(event.target.value)} /></label>
+          <label className="field"><span>Owner Display Name</span><input value={ownerName} onChange={event => setOwnerName(event.target.value)} /></label>
+          <label className="field"><span>Email</span><input value={profile.email || ""} disabled /></label>
+          <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Account"}</button>
+        </form>
+      </article>
+
+      {!ownerMode && <article className="settings-card">
+        <h3>Stable</h3>
+        <p>Basic stable identity and branding. Logo upload can be added next.</p>
+        <form className="form-grid" onSubmit={saveStable}>
+          <label className="field"><span>Stable Name</span><input value={stableName} onChange={event => setStableName(event.target.value)} /></label>
+          <label className="field"><span>Stable ID</span><input value={profile.stable_id || ""} disabled /></label>
+          <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Stable"}</button>
+        </form>
+      </article>}
+
+      <article className="settings-card">
+        <h3>Security</h3>
+        <p>Password reset works now. Two-factor authentication will be added here next.</p>
+        <div className="settings-actions">
+          <button className="ghost" type="button" onClick={sendPasswordReset}>Send Password Reset Email</button>
+          <button className="ghost" type="button" disabled>Two-Factor Authentication — Coming Next</button>
+        </div>
+      </article>
+
+      <article className="settings-card">
+        <h3>Notifications</h3>
+        <p>Email notifications for updates, invoices, race reminders and owner notices will live here.</p>
+        <div className="settings-actions">
+          <button className="ghost" type="button" disabled>Email Preferences — Coming Soon</button>
+        </div>
+      </article>
+    </section>
+  </main>;
 }
 
 function Dashboard({ stableId, setTab }) {
@@ -336,7 +682,7 @@ function GenericTable({ stableId, config, setToast }) {
   useEffect(() => {
     if (!stableId) return;
     load();
-    supabase.from("horses").select("name").eq("stable_id", stableId).order("name").then(({ data }) => setHorses(data || []));
+    supabase.from("horses").select("name,stable_name").eq("stable_id", stableId).order("name").then(({ data }) => setHorses(validHorseOptions(data || [])));
     supabase.from("owners").select("name,email,phone").eq("stable_id", stableId).order("name").then(({ data }) => setOwners(data || []));
   }, [stableId, config.table]);
 
@@ -352,7 +698,7 @@ function GenericTable({ stableId, config, setToast }) {
       if (type === "date") out[key] = new Date().toISOString().slice(0, 10);
       else if (type === "number") out[key] = "";
       else if (type === "select") out[key] = options[0];
-      else if (type === "horseName") out[key] = horses[0]?.name || "";
+      else if (type === "horseName") out[key] = horseDisplayName(validHorseOptions(horses)[0]) || "";
       else if (type === "ownerName") out[key] = owners[0]?.name || "";
       else out[key] = "";
     });
@@ -408,7 +754,7 @@ function GenericTable({ stableId, config, setToast }) {
     </section>
     {modal?.mode === "horseProfile" && <HorseProfile horse={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
     {modal?.mode === "ownerProfile" && <OwnerProfile owner={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
-    {modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
+    {modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} stableId={stableId} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
   </main>;
 }
 
@@ -472,7 +818,7 @@ function UpdatesPanel({ stableId, setToast }) {
     table: "updates",
     title: "Updates",
     icon: Megaphone,
-    fields: [["title","Title","text"],["horse_name","Horse","horseName"],["category","Category","select",["Stable Update","Owner Update","Race Update","Vet Update","Work Update","General"]],["body","Update Message","textarea"],["photo_urls","Photo URLs","textarea"],["video_urls","Video URLs","textarea"],["link_urls","Links","textarea"],["visibility","Visibility","select",["internal","owners","public-preview"]],["send_status","Send Status","select",["Draft","Ready To Send","Sent"]]],
+    fields: [["title","Title","text"],["horse_name","Horse","horseName"],["category","Category","select",["Stable Update","Owner Update","Race Update","Vet Update","Work Update","General"]],["body","Update Message","textarea"],["photo_urls","Photos","photoUpload"],["video_urls","Videos","videoUpload"],["link_urls","Links","textarea"],["visibility","Visibility","select",["internal","owners","public-preview"]],["send_status","Send Status","select",["Draft","Ready To Send","Sent"]]],
     display: ["horse_name","category","visibility","send_status","body","photo_urls","video_urls","link_urls"]
   };
   return <GenericTable stableId={stableId} config={config} setToast={setToast} />;
@@ -529,8 +875,8 @@ function Invoices({ stableId, setToast }) {
     const { data, error } = await supabase.from("invoices").select("*").eq("stable_id", stableId).order("created_at", { ascending: false });
     if (error) setToast(error.message);
     setRows(data || []);
-    const horseResult = await supabase.from("horses").select("name").eq("stable_id", stableId).order("name");
-    setHorses(horseResult.data || []);
+    const horseResult = await supabase.from("horses").select("name,stable_name").eq("stable_id", stableId).order("name");
+    setHorses(validHorseOptions(horseResult.data || []));
     const ownerResult = await supabase.from("owners").select("name,email,phone").eq("stable_id", stableId).order("name");
     setOwners(ownerResult.data || []);
   }
@@ -541,7 +887,7 @@ function Invoices({ stableId, setToast }) {
       client_name: "",
       client_email: "",
       client_phone: "",
-      horse_name: horses[0]?.name || "",
+      horse_name: horseDisplayName(validHorseOptions(horses)[0]) || "",
       due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0,10),
       status: "Draft",
       payment_status: "Unpaid",
@@ -637,7 +983,7 @@ function InvoiceModal({ modal, horses, owners, onClose, onSave }) {
         <Field label="Owner / Client"><select value={invoice.client_name || ""} onChange={e => setField("client_name", e.target.value)}><option value="">Select owner...</option>{owners.map(owner => <option key={owner.name} value={owner.name}>{owner.name}</option>)}</select></Field>
         <Field label="Client Email"><input value={invoice.client_email || ""} onChange={e => setField("client_email", e.target.value)} /></Field>
         <Field label="Client Phone"><input value={invoice.client_phone || ""} onChange={e => setField("client_phone", e.target.value)} /></Field>
-        <Field label="Horse"><select value={invoice.horse_name || ""} onChange={e => setField("horse_name", e.target.value)}>{horses.map(horse => <option key={horse.name}>{horse.name}</option>)}</select></Field>
+        <Field label="Horse"><select value={invoice.horse_name || ""} onChange={event => setField("horse_name", event.target.value)}>{validHorseOptions(horses).map(horse => { const display = horseDisplayName(horse); return <option key={horse.name || horse.stable_name || display} value={display}>{display}</option>; })}</select></Field>
         <Field label="Due Date"><input type="date" value={invoice.due_date || ""} onChange={e => setField("due_date", e.target.value)} /></Field>
         <Field label="Status"><select value={invoice.status || "Draft"} onChange={e => setField("status", e.target.value)}><option>Draft</option><option>Sent</option><option>Part Paid</option><option>Paid</option><option>Overdue</option></select></Field>
         <Field label="Payment Status"><select value={invoice.payment_status || "Unpaid"} onChange={e => setField("payment_status", e.target.value)}><option>Unpaid</option><option>Part Paid</option><option>Paid</option></select></Field>
@@ -750,6 +1096,16 @@ function HorseProfile({ horse, stableId, onClose }) {
   return <div className="modal-backdrop">
     <section className="modal profile-modal">
       <div className="modal-head"><h2>{horse.name}</h2><button onClick={onClose}><X size={20}/></button></div>
+      <ProfileSection title="Horse Details">
+        <div className="details">
+          <div><span>Stable Name</span><strong>{horse.stable_name || "-"}</strong></div>
+          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
+          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
+          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
+          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
+        </div>
+      </ProfileSection>
       <button className="primary" onClick={addOwner}>Add Owner Share</button>
       <ProfileSection title="Owners">
         {data.owners.map(row => <div className="profile-row" key={row.id}><span>{row.owner_name}</span><strong>{row.percentage}%</strong><button className="delete small" onClick={() => deleteShare(row.id)}><Trash2 size={14}/></button></div>)}
@@ -838,12 +1194,143 @@ function useOwnerData(profile) {
 
 function OwnerHorses({ profile }) {
   const { horses } = useOwnerData(profile);
-  return <main className="page"><section className="grid">{horses.map(horse => <article className="record" key={horse.name}><h3>{horse.name}</h3><p>{horse.percentage}% owned</p><p>{horse.status || horse.current_status || ""}</p></article>)}</section></main>;
+  const [selectedHorse, setSelectedHorse] = useState(null);
+
+  return <main className="page">
+    <section className="grid">
+      {horses.map(horse => <article className="record clickable" key={horse.name} onClick={() => setSelectedHorse(horse)}>
+        <div className="record-head">
+          <div>
+            <h3>{horse.name}</h3>
+            <p>{horse.percentage}% owned</p>
+          </div>
+          <ChevronRight size={20} />
+        </div>
+        <div className="details">
+          <div><span>Status</span><strong>{horse.status || horse.current_status || "-"}</strong></div>
+          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
+          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
+          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
+          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
+          <div><span>Next Target</span><strong>{horse.next_target || "-"}</strong></div>
+        </div>
+      </article>)}
+    </section>
+    {selectedHorse && <OwnerHorseDetail horse={selectedHorse} profile={profile} onClose={() => setSelectedHorse(null)} />}
+  </main>;
 }
+
+
+function OwnerHorseDetail({ horse, profile, onClose }) {
+  const [data, setData] = useState({ work: [], races: [], vet: [], farrier: [], feed: [], gear: [], updates: [], invoices: [] });
+
+  useEffect(() => { load(); }, [horse.name]);
+
+  async function load() {
+    const [work, races, vet, farrier, feed, gear, updates, invoices] = await Promise.all([
+      supabase.from("work_entries").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("date", { ascending: false }),
+      supabase.from("race_records").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("date", { ascending: false }),
+      supabase.from("treatments").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("treatment_date", { ascending: false }),
+      supabase.from("farrier_records").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).order("farrier_date", { ascending: false }),
+      supabase.from("feed_programs").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name),
+      supabase.from("gear_items").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name),
+      supabase.from("updates").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).in("visibility", ["owners", "public-preview"]).order("created_at", { ascending: false }),
+      supabase.from("invoices").select("*").eq("stable_id", profile.stable_id).eq("horse_name", horse.name).eq("client_name", profile.owner_name || profile.full_name)
+    ]);
+
+    setData({
+      work: work.data || [],
+      races: races.data || [],
+      vet: vet.data || [],
+      farrier: farrier.data || [],
+      feed: feed.data || [],
+      gear: gear.data || [],
+      updates: updates.data || [],
+      invoices: invoices.data || []
+    });
+  }
+
+  return <div className="modal-backdrop">
+    <section className="modal profile-modal owner-horse-detail">
+      <div className="modal-head">
+        <div>
+          <p className="eyebrow dark-text">Horse Profile</p>
+          <h2>{horse.name}</h2>
+        </div>
+        <button onClick={onClose}><X size={20}/></button>
+      </div>
+
+      <section className="owner-horse-summary">
+        {horse.profile_photo_url && <img src={horse.profile_photo_url} alt={horse.name} />}
+        <div className="owner-horse-basic-grid">
+          <div><span>Ownership</span><strong>{horse.percentage}%</strong></div>
+          <div><span>Stable Name</span><strong>{horse.stable_name || "-"}</strong></div>
+          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
+          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
+          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
+          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
+          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
+          <div><span>Status</span><strong>{horse.status || horse.current_status || "-"}</strong></div>
+          <div><span>Next Target</span><strong>{horse.next_target || "-"}</strong></div>
+        </div>
+      </section>
+
+      {horse.notes && <ProfileSection title="Notes"><p className="owner-horse-notes">{horse.notes}</p></ProfileSection>}
+
+      <ProfileSection title="Recent Work">
+        <CollapsibleList rows={data.work} threshold={6} render={row => <SimpleRow key={row.id} left={`${row.date || "-"} · ${row.sector || "Work"}`} right={`Overall: ${row.overall_time || "-"} · Mile: ${row.mile_rate || "-"}`} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Races">
+        <CollapsibleList rows={data.races} threshold={6} render={row => <SimpleRow key={row.id} left={`${row.date || "-"} · ${row.track || ""} · ${row.status || ""}`} right={row.result || (row.prizemoney ? `$${row.prizemoney}` : "-")} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Updates">
+        <CollapsibleList rows={data.updates} threshold={4} render={update => <article className="owner-update-card" key={update.id}>
+          <p className="owner-update-horse">{update.horse_name}</p>
+          <h3>{update.title || "Stable Update"}</h3>
+          <p>{update.body}</p>
+          <UpdateMedia update={update} />
+        </article>} />
+      </ProfileSection>
+
+      <ProfileSection title="Vet">
+        <CollapsibleList rows={data.vet} threshold={5} render={row => <SimpleRow key={row.id} left={`${row.treatment_date || "-"} · ${row.treatment_type || "Treatment"}`} right={row.follow_up_date ? `Follow-up: ${row.follow_up_date}` : ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Farrier">
+        <CollapsibleList rows={data.farrier} threshold={5} render={row => <SimpleRow key={row.id} left={`${row.farrier_date || "-"} · ${row.service_type || "Farrier"}`} right={row.next_due_date ? `Next due: ${row.next_due_date}` : ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Feed">
+        <CollapsibleList rows={data.feed} threshold={3} render={row => <SimpleRow key={row.id} left={row.morning_feed || row.night_feed || "Feed record"} right={row.supplements || ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Gear">
+        <CollapsibleList rows={data.gear} threshold={5} render={row => <SimpleRow key={row.id} left={`${row.item_name || "Gear"} · ${row.category || ""}`} right={row.condition || ""} />} />
+      </ProfileSection>
+
+      <ProfileSection title="Bills">
+        <CollapsibleList rows={data.invoices} threshold={5} render={row => <SimpleRow key={row.id} left={row.invoice_number || "Invoice"} right={`$${Number(row.total || 0).toFixed(2)}`} />} />
+      </ProfileSection>
+    </section>
+  </div>;
+}
+
 
 function OwnerUpdates({ profile }) {
   const { updates } = useOwnerData(profile);
-  return <main className="page"><section className="grid">{updates.map(update => <article className="record" key={update.id}><h3>{update.title}</h3><p>{update.body}</p><UpdateMedia update={update}/></article>)}</section></main>;
+  return <main className="page">
+    <section className="grid">
+      {updates.map(update => <article className="record owner-update-card" key={update.id}>
+        <p className="owner-update-horse">{update.horse_name || "Stable Update"}</p>
+        <h3>{update.title || "Update"}</h3>
+        <p>{update.body}</p>
+        <UpdateMedia update={update}/>
+      </article>)}
+    </section>
+  </main>;
 }
 
 function OwnerCalendar({ profile }) {
@@ -911,14 +1398,14 @@ function PhoneCalendar({ rows, dateField, selectedDate, setSelectedDate, title }
   </section>;
 }
 
-function RecordModal({ title, fields, record, horses, owners, onClose, onSave }) {
+function RecordModal({ title, fields, record, horses, owners, stableId, onClose, onSave }) {
   const [form, setForm] = useState(record);
   return <div className="modal-backdrop">
     <section className="modal">
       <div className="modal-head"><h2>{title}</h2><button onClick={onClose}><X size={20}/></button></div>
       <div className="form-grid">
         {fields.filter(([_key, _label, type]) => type !== "conditionalWarmup" || WARMUP_SECTORS.includes(form.sector)).map(([key, label, type, options]) => <Field key={key} label={label}>
-          <Input type={type} value={form[key] ?? ""} options={options} horses={horses} owners={owners} onChange={value => setForm(current => ({ ...current, [key]: value }))} />
+          <Input type={type} value={form[key] ?? ""} options={options} horses={horses} owners={owners} stableId={stableId} onChange={value => setForm(current => ({ ...current, [key]: value }))} />
         </Field>)}
       </div>
       <button className="primary full" onClick={() => onSave(form)}>Save</button>
@@ -933,6 +1420,65 @@ function UpdateMedia({ update }) {
     {splitLines(update.link_urls).map((url, index) => <a className="media-pill" href={url} target="_blank" rel="noreferrer" key={url}>Link {index + 1}</a>)}
   </div>;
 }
+
+
+function MediaUploadInput({ value, stableId, accept, kind, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const urls = splitLines(value);
+
+  async function uploadFiles(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    setUploading(true);
+    const uploadedUrls = [];
+
+    for (const file of files) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const path = `${stableId || "stable"}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const { error } = await supabase.storage.from("update-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false
+      });
+
+      if (error) {
+        alert(error.message || "Upload failed");
+        continue;
+      }
+
+      const { data } = supabase.storage.from("update-media").getPublicUrl(path);
+      if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+    }
+
+    const next = [...urls, ...uploadedUrls].join("\n");
+    onChange(next);
+    setUploading(false);
+    event.target.value = "";
+  }
+
+  function removeUrl(url) {
+    onChange(urls.filter(item => item !== url).join("\n"));
+  }
+
+  return <div className="media-upload-box">
+    <label className="upload-button">
+      {uploading ? "Uploading..." : `Upload ${kind === "photo" ? "photos" : "videos"}`}
+      <input type="file" accept={accept} multiple onChange={uploadFiles} disabled={uploading} />
+    </label>
+    <textarea
+      value={value || ""}
+      onChange={event => onChange(event.target.value)}
+      placeholder={`Uploaded ${kind} URLs will appear here. You can also paste URLs manually.`}
+    />
+    {!!urls.length && <div className="uploaded-media-list">
+      {urls.map(url => <div key={url} className="uploaded-media-item">
+        <span>{url}</span>
+        <button type="button" onClick={() => removeUrl(url)}>Remove</button>
+      </div>)}
+    </div>}
+  </div>;
+}
+
 
 function SimpleRow({ left, right }) {
   return <div className="profile-row"><span>{left}</span><strong>{right}</strong></div>;
@@ -969,10 +1515,12 @@ function CollapsibleRecords({ rows, threshold = 12, render }) {
   </>;
 }
 
-function Input({ type, value, options, horses, owners, onChange }) {
+function Input({ type, value, options, horses, owners, stableId, onChange }) {
+  if (type === "photoUpload") return <MediaUploadInput value={value} stableId={stableId} accept="image/*" kind="photo" onChange={onChange} />;
+  if (type === "videoUpload") return <MediaUploadInput value={value} stableId={stableId} accept="video/*" kind="video" onChange={onChange} />;
   if (type === "textarea" || type === "conditionalWarmup") return <textarea value={value} onChange={event => onChange(event.target.value)} />;
   if (type === "select") return <select value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option}>{option}</option>)}</select>;
-  if (type === "horseName") return <select value={value} onChange={event => onChange(event.target.value)}>{horses.map(horse => <option key={horse.name}>{horse.name}</option>)}</select>;
+  if (type === "horseName") { const options = validHorseOptions(horses); return <select value={value} onChange={event => onChange(event.target.value)}>{options.length ? options.map(horse => { const display = horseDisplayName(horse); return <option key={horse.id || horse.name || horse.stable_name || display} value={display}>{display}</option>; }) : <option value="">No horses added yet</option>}</select>; }
   if (type === "ownerName") return <select value={value} onChange={event => onChange(event.target.value)}>{owners.map(owner => <option key={owner.name}>{owner.name}</option>)}</select>;
   return <input type={type} value={value} onChange={event => onChange(event.target.value)} />;
 }
@@ -1007,6 +1555,19 @@ function formatDate(value) {
 
 function splitLines(value) {
   return String(value || "").split(/\n|,/).map(item => item.trim()).filter(Boolean);
+}
+
+
+function horseDisplayName(horse) {
+  if (!horse) return "";
+  if (typeof horse === "string") return horse.trim();
+  const registeredName = String(horse.name || "").trim();
+  const stableName = String(horse.stable_name || "").trim();
+  return registeredName || stableName || "";
+}
+
+function validHorseOptions(horses) {
+  return (horses || []).filter(horse => horseDisplayName(horse));
 }
 
 function labelize(value) {
