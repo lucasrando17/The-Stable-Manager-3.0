@@ -1,7 +1,7 @@
 {
-  "name": "stable-manager-saas-scaffold",
+  "name": "trotting-stable-auth-app",
   "private": true,
-  "version": "6.0.0",
+  "version": "7.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "@supabase/supabase-js": "latest",
     "vite": "latest",
     "react": "latest",
     "react-dom": "latest",

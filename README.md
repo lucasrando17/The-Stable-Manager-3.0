@@ -1,27 +1,18 @@
-# Stable Manager SaaS Scaffold
+# The Trotting Stable App — Auth Connected
 
-This is the rebuilt version with invoice sharing/email/SMS scaffolding.
+This version adds:
+- Supabase login
+- protected access
+- stable_id filtered cloud data
+- horses
+- work with warm-up and jogger machine fields
+- single-horse work history isolator
+- finance
+- invoices with print/share
+- Resend email API placeholder
 
-Included now:
-- add/edit/delete stable modules
-- work warm-up
-- jogger machine work sector
-- single horse work history isolator
-- invoices with line items, GST, totals
-- print/save invoice as PDF
-- phone share sheet for SMS/WhatsApp/email text sharing
-- demo email API endpoint
-- demo SMS API endpoint
-- import/export JSON
-- placeholders for owner portal, cloud sync, login, database
+Required Vercel env vars:
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_ANON_KEY
 
-To make email/SMS actually send:
-- Add Resend/Postmark/SendGrid details to `/api/send-invoice-email.js`
-- Add Twilio details to `/api/send-invoice-sms.js`
-- Add env vars in Vercel from `.env.example`
-
-Vercel:
-Framework: Vite
-Build: npm run build
-Output: dist
-Install: npm install
+Upload the CONTENTS of this folder to GitHub, not the folder itself.
