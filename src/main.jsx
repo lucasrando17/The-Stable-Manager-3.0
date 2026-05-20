@@ -10,8 +10,7 @@ import {
   Users, Wheat, X
 } from "lucide-react";
 import "./styles.css";
-import MfaSettings from "./components/MfaSettings.jsx";
-import MfaChallenge from "./components/MfaChallenge.jsx";
+import SecuritySettings from "./pages/security/SecuritySettings.jsx";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
@@ -91,57 +90,19 @@ function App() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
-  const [mfaRequired, setMfaRequired] = useState(false);
-  const [mfaFactorId, setMfaFactorId] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       setSession(data.session || null);
-      if (data.session) await checkMfaRequirement();
       setLoading(false);
     });
-
-    const { data } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-
-      if (nextSession) {
-        setEntry("app");
-        await checkMfaRequirement();
-      } else {
-        setMfaRequired(false);
-        setMfaFactorId(null);
-      }
-
+      if (nextSession) setEntry("app");
       if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
-
     return () => data.subscription.unsubscribe();
   }, []);
-
-  async function checkMfaRequirement() {
-    try {
-      const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-      if (assurance?.nextLevel === "aal2" && assurance?.currentLevel !== "aal2") {
-        const { data: factors } = await supabase.auth.mfa.listFactors();
-        const verifiedFactor = factors?.totp?.find(factor => factor.status === "verified");
-
-        if (verifiedFactor?.id) {
-          setMfaFactorId(verifiedFactor.id);
-          setMfaRequired(true);
-          return true;
-        }
-      }
-
-      setMfaRequired(false);
-      setMfaFactorId(null);
-      return false;
-    } catch {
-      setMfaRequired(false);
-      setMfaFactorId(null);
-      return false;
-    }
-  }
 
   useEffect(() => {
     if (session?.user?.id) loadProfile();
@@ -176,7 +137,6 @@ function App() {
 
   if (loading) return <div className="center">Loading...</div>;
   if (session && passwordRecovery) return <PasswordResetForm onDone={() => setPasswordRecovery(false)} setToast={setToast} />;
-  if (session && mfaRequired) return <MfaChallenge supabase={supabase} factorId={mfaFactorId} onVerified={async () => { setMfaRequired(false); await loadProfile(); }} setToast={setToast} />;
   if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "invite") return <InviteSignup onBack={() => setEntry("landing")} setToast={setToast} />;
@@ -659,12 +619,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>}
 
       <article className="settings-card">
-        <h3>Security</h3>
-        <p>Manage password reset and optional authenticator-app two-factor authentication.</p>
-        <div className="settings-actions">
-          <button className="ghost" type="button" onClick={sendPasswordReset}>Send Password Reset Email</button>
-          <MfaSettings supabase={supabase} setToast={setToast} />
-        </div>
+        <SecuritySettings supabase={supabase} setToast={setToast} onSendPasswordReset={sendPasswordReset} />
       </article>
 
       <article className="settings-card">

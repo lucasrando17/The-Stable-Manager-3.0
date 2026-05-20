@@ -1,22 +1,25 @@
-SEPARATE 2FA COMPONENTS PATCH
+SECURITY SETTINGS / 2FA SETUP PAGE PATCH
 
-This patch does NOT touch package.json, package-lock.json, styles.css, or SQL.
+This is deliberately NOT the full MFA login challenge yet.
 
-Upload/copy only these files:
+It does:
+- Adds src/pages/security/SecuritySettings.jsx
+- Replaces the Security card with that component
+- Allows users to enroll and verify authenticator-app 2FA
+- Allows disabling/clearing 2FA factors
+
+It does NOT:
+- Touch package.json
+- Touch package-lock.json
+- Touch styles.css
+- Change the core login/auth flow
+- Force morning login prompts
+
+Upload/copy only:
 1. src/main.jsx
-2. src/components/MfaSettings.jsx
-3. src/components/MfaChallenge.jsx
+2. src/pages/security/SecuritySettings.jsx
 
 Commit message:
-Add 2FA as separate components
+Add separate security settings component
 
-Supabase requirement:
-Authentication > Multi-Factor > TOTP must be enabled.
-
-Rollback:
-If anything goes wrong, revert only this commit.
-
-Notes:
-- Existing remembered sessions should not be interrupted every morning.
-- Verified 2FA users are challenged on fresh login/new browser/new device when Supabase requires aal2.
-- I did not run a full npm build here because the build step itself is what has been hanging.
+If this deploys quickly and works, the next patch is the separate login challenge.
