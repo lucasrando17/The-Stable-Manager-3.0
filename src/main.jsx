@@ -622,7 +622,29 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         <p>Password reset works now. Two-factor authentication will be added here next.</p>
         <div className="settings-actions">
           <button className="ghost" type="button" onClick={sendPasswordReset}>Send Password Reset Email</button>
-          <button className="ghost" type="button" disabled>Two-Factor Authentication — Coming Next</button>
+          <button
+  className="ghost"
+  type="button"
+  onClick={async () => {
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: "totp"
+    });
+
+    if (error) {
+      setToast(error.message);
+      return;
+    }
+
+    const qr = data?.totp?.qr_code;
+
+    if (qr) {
+      window.open(qr, "_blank");
+      setToast("Scan QR with Google Authenticator.");
+    }
+  }}
+>
+  Enable Two-Factor Authentication
+</button>
         </div>
       </article>
 
