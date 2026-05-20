@@ -101,6 +101,7 @@ function App() {
 
     const { data } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       setSession(nextSession);
+
       if (nextSession) {
         setEntry("app");
         await checkMfaRequirement();
@@ -108,6 +109,7 @@ function App() {
         setMfaRequired(false);
         setMfaFactorId(null);
       }
+
       if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
 
@@ -115,14 +117,14 @@ function App() {
   }, []);
 
   async function checkMfaRequirement() {
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
-    if (aal?.nextLevel === "aal2" && aal?.currentLevel !== "aal2") {
+    if (assurance?.nextLevel === "aal2" && assurance?.currentLevel !== "aal2") {
       const { data: factors } = await supabase.auth.mfa.listFactors();
-      const verifiedTotp = factors?.totp?.find(factor => factor.status === "verified");
+      const verifiedFactor = factors?.totp?.find(factor => factor.status === "verified");
 
-      if (verifiedTotp?.id) {
-        setMfaFactorId(verifiedTotp.id);
+      if (verifiedFactor?.id) {
+        setMfaFactorId(verifiedFactor.id);
         setMfaRequired(true);
         return true;
       }
@@ -362,11 +364,10 @@ function PasswordResetForm({ onDone, setToast }) {
 function MfaChallenge({ factorId, onVerified, setToast }) {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
-  const [verifying, setVerifying] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
-    setMessage("");
 
     const cleanCode = code.replace(/\D/g, "");
 
@@ -380,13 +381,14 @@ function MfaChallenge({ factorId, onVerified, setToast }) {
       return;
     }
 
-    setVerifying(true);
+    setChecking(true);
+    setMessage("");
 
     const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
 
     if (challengeError) {
       setMessage(challengeError.message);
-      setVerifying(false);
+      setChecking(false);
       return;
     }
 
@@ -398,12 +400,12 @@ function MfaChallenge({ factorId, onVerified, setToast }) {
 
     if (error) {
       setMessage(error.message);
-      setVerifying(false);
+      setChecking(false);
       return;
     }
 
     setToast?.("Two-factor check complete.");
-    setVerifying(false);
+    setChecking(false);
     onVerified?.();
   }
 
@@ -414,14 +416,13 @@ function MfaChallenge({ factorId, onVerified, setToast }) {
       <p>Enter the 6-digit code from your authenticator app.</p>
       <form onSubmit={submit}>
         <label>Authenticator Code<input className="mfa-code-input" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
-        <button className="primary full" disabled={verifying}>{verifying ? "Checking..." : "Verify"}</button>
+        <button className="primary full" disabled={checking}>{checking ? "Checking..." : "Verify"}</button>
       </form>
       <button className="text" onClick={() => supabase.auth.signOut()}>Log out</button>
       {message && <p className="login-message">{message}</p>}
     </section>
   </main>;
 }
-
 
 function Landing({ setEntry }) {
   return <main className="landing">
@@ -687,10 +688,12 @@ function MfaSettings({ setToast }) {
     if (!confirm("Disable two-factor authentication for this account?")) return;
 
     setLoading(true);
+
     const { error } = await supabase.auth.mfa.unenroll({ factorId });
 
-    if (error) setToast(error.message);
-    else {
+    if (error) {
+      setToast(error.message);
+    } else {
       setToast("Two-factor authentication disabled.");
       await loadFactors();
     }
@@ -702,13 +705,13 @@ function MfaSettings({ setToast }) {
   const pendingFactors = factors.filter(factor => factor.status !== "verified");
   const enabled = verifiedFactors.length > 0;
 
-  return <div className="settings-actions">
-    <div className={`security-status ${enabled ? "enabled" : "disabled"}`}>
+  return <div className="settings-actions mfa-settings">
+    <p className={`security-status ${enabled ? "enabled" : "disabled"}`}>
       {enabled ? "2FA enabled for this account" : "2FA not enabled for this account"}
-    </div>
+    </p>
 
     <p className="muted">
-      This is account-level protection. Once enabled, the user is challenged on a fresh login/new browser session, but normal remembered sessions should not be interrupted every morning.
+      Designed for fresh logins/new browsers/new devices. If a trainer stays logged in on the same device, they should not be interrupted every morning.
     </p>
 
     {enabled && verifiedFactors.map(factor => <div className="factor-row" key={factor.id}>
@@ -729,10 +732,9 @@ function MfaSettings({ setToast }) {
       <button className="text" type="button" onClick={() => { setEnrollment(null); setCode(""); }}>Cancel setup</button>
     </form>}
 
-    {pendingFactors.length > 0 && <button className="text" type="button" disabled={loading} onClick={() => disableFactor(pendingFactors[0].id)}>Clear unfinished 2FA setup</button>}
+    {pendingFactors.length > 0 && !enrollment && <button className="text" type="button" disabled={loading} onClick={() => disableFactor(pendingFactors[0].id)}>Clear unfinished 2FA setup</button>}
   </div>;
 }
-
 
 function SettingsPanel({ profile, stable, setStable, setProfile, setToast, ownerMode = false }) {
   const [name, setName] = useState(profile.full_name || profile.owner_name || "");
@@ -781,26 +783,39 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
 
     setSaving(true);
 
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from("stables")
       .update({ name: nextName })
       .eq("id", profile.stable_id);
 
-    if (error) {
-      setToast(error.message);
-    } else {
-      const updatedStable = {
-        ...(stable || {}),
-        id: profile.stable_id,
-        name: nextName
-      };
-
-      setStable?.(updatedStable);
-      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
-      setStableName(nextName);
-      setToast("Stable settings saved.");
+    if (updateError) {
+      setToast(updateError.message);
+      setSaving(false);
+      return;
     }
 
+    const { data: refreshedStable, error: refreshError } = await supabase
+      .from("stables")
+      .select("*")
+      .eq("id", profile.stable_id)
+      .maybeSingle();
+
+    if (refreshError) {
+      setToast(refreshError.message);
+      setSaving(false);
+      return;
+    }
+
+    const updatedStable = refreshedStable || {
+      ...(stable || {}),
+      id: profile.stable_id,
+      name: nextName
+    };
+
+    setStable?.(updatedStable);
+    setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
+    setStableName(updatedStable.name || nextName);
+    setToast("Stable settings saved.");
     setSaving(false);
   }
 
