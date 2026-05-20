@@ -1,27 +1,31 @@
-SAFE 2FA + STABLE NAME PERSISTENCE PATCH
+MAIN.JSX WITH 2FA PATCH - BUILD VERIFIED
 
-IMPORTANT:
-- Do NOT upload this ZIP as a file into GitHub.
-- Do NOT replace package.json.
-- Do NOT replace package-lock.json.
+Use this carefully:
 
-Use only:
-1. src/main.jsx
-2. RUN_THIS_SQL_STABLE_NAME_PERSISTENCE_FIX.sql
+1. Do NOT replace package.json.
+2. Do NOT replace package-lock.json.
+3. Do NOT replace styles.css.
+4. Only replace src/main.jsx with the src/main.jsx inside this ZIP.
 
-Steps:
-1. In GitHub, open src/main.jsx.
-2. Select all and replace it with the contents of src/main.jsx from this ZIP.
-3. Commit:
-   Add safe 2FA and stable name persistence fix
+Commit message:
+Add verified 2FA main JSX
 
-4. In Supabase SQL Editor, run:
-   RUN_THIS_SQL_STABLE_NAME_PERSISTENCE_FIX.sql
+Supabase requirement:
+Authentication > Multi-Factor > TOTP must be enabled.
 
-What this does:
-- Adds optional authenticator-app 2FA in Settings > Security.
-- Challenges only on fresh login/new browser/new device once 2FA is enabled.
-- Existing remembered sessions should not be interrupted every morning.
-- Fixes stable name saving by improving the app save flow and adding the proper stables update/select policies.
+What this adds:
+- Settings > Security shows 2FA status
+- Start 2FA enrollment
+- QR code display in Settings
+- 6-digit code verification
+- Disable 2FA
+- Challenge screen on fresh login/new browser/new device for verified 2FA users
 
-No package changes are required.
+What it preserves:
+- Existing app layout/components from the uploaded source
+- Stable name save logic
+- Owner portal/stable portal structure
+- Package files
+
+Rollback:
+If anything goes wrong, revert only this commit.
