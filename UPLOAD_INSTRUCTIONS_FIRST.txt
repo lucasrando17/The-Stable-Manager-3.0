@@ -1,25 +1,27 @@
-SECURITY SETTINGS / 2FA SETUP PAGE PATCH
+SAFE 2FA + STABLE NAME PERSISTENCE PATCH
 
-This is deliberately NOT the full MFA login challenge yet.
+IMPORTANT:
+- Do NOT upload this ZIP as a file into GitHub.
+- Do NOT replace package.json.
+- Do NOT replace package-lock.json.
 
-It does:
-- Adds src/pages/security/SecuritySettings.jsx
-- Replaces the Security card with that component
-- Allows users to enroll and verify authenticator-app 2FA
-- Allows disabling/clearing 2FA factors
-
-It does NOT:
-- Touch package.json
-- Touch package-lock.json
-- Touch styles.css
-- Change the core login/auth flow
-- Force morning login prompts
-
-Upload/copy only:
+Use only:
 1. src/main.jsx
-2. src/pages/security/SecuritySettings.jsx
+2. RUN_THIS_SQL_STABLE_NAME_PERSISTENCE_FIX.sql
 
-Commit message:
-Add separate security settings component
+Steps:
+1. In GitHub, open src/main.jsx.
+2. Select all and replace it with the contents of src/main.jsx from this ZIP.
+3. Commit:
+   Add safe 2FA and stable name persistence fix
 
-If this deploys quickly and works, the next patch is the separate login challenge.
+4. In Supabase SQL Editor, run:
+   RUN_THIS_SQL_STABLE_NAME_PERSISTENCE_FIX.sql
+
+What this does:
+- Adds optional authenticator-app 2FA in Settings > Security.
+- Challenges only on fresh login/new browser/new device once 2FA is enabled.
+- Existing remembered sessions should not be interrupted every morning.
+- Fixes stable name saving by improving the app save flow and adding the proper stables update/select policies.
+
+No package changes are required.
