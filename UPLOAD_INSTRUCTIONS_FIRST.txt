@@ -1,11 +1,21 @@
-STABLE NAME DISPLAY FIX PATCH
+2FA / MFA PATCH
 
 Upload the CONTENTS of this folder to GitHub.
 
 Commit message:
-Fix stable name settings display update
+Add authenticator app two factor authentication
 
-This patch fixes:
-- Editing Stable Name in Settings now updates the top display immediately.
-- Account name changes also update local app state immediately.
-- No SQL required.
+What this adds:
+- Settings > Security > Enable Two-Factor Authentication
+- QR code setup for Google Authenticator/Authy/1Password etc.
+- 6-digit code verification
+- Disable 2FA for the current account
+- Login challenge when an enrolled user starts a fresh login/new browser session
+
+Important:
+- This does NOT force every trainer to re-authenticate every morning.
+- If the user remains logged in on the same device/browser, their normal session should continue.
+- If they log out, clear browser data, use a new phone/computer, or start a fresh session, enrolled 2FA accounts will be challenged.
+
+No SQL required.
+Supabase MFA / TOTP must already be enabled in Authentication > Multi-Factor.
