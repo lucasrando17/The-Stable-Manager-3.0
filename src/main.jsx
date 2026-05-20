@@ -89,51 +89,19 @@ function App() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
-  const [mfaRequired, setMfaRequired] = useState(false);
-  const [mfaFactorId, setMfaFactorId] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       setSession(data.session || null);
-      if (data.session) await checkMfaRequirement();
       setLoading(false);
     });
-
-    const { data } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-
-      if (nextSession) {
-        setEntry("app");
-        await checkMfaRequirement();
-      } else {
-        setMfaRequired(false);
-        setMfaFactorId(null);
-      }
-
+      if (nextSession) setEntry("app");
       if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
-
     return () => data.subscription.unsubscribe();
   }, []);
-
-  async function checkMfaRequirement() {
-    const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-    if (assurance?.nextLevel === "aal2" && assurance?.currentLevel !== "aal2") {
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const verifiedFactor = factors?.totp?.find(factor => factor.status === "verified");
-
-      if (verifiedFactor?.id) {
-        setMfaFactorId(verifiedFactor.id);
-        setMfaRequired(true);
-        return true;
-      }
-    }
-
-    setMfaRequired(false);
-    setMfaFactorId(null);
-    return false;
-  }
 
   useEffect(() => {
     if (session?.user?.id) loadProfile();
@@ -168,7 +136,6 @@ function App() {
 
   if (loading) return <div className="center">Loading...</div>;
   if (session && passwordRecovery) return <PasswordResetForm onDone={() => setPasswordRecovery(false)} setToast={setToast} />;
-  if (session && mfaRequired) return <MfaChallenge factorId={mfaFactorId} onVerified={async () => { setMfaRequired(false); await loadProfile(); }} setToast={setToast} />;
   if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "invite") return <InviteSignup onBack={() => setEntry("landing")} setToast={setToast} />;
@@ -360,70 +327,6 @@ function PasswordResetForm({ onDone, setToast }) {
 }
 
 
-
-function MfaChallenge({ factorId, onVerified, setToast }) {
-  const [code, setCode] = useState("");
-  const [message, setMessage] = useState("");
-  const [checking, setChecking] = useState(false);
-
-  async function submit(event) {
-    event.preventDefault();
-
-    const cleanCode = code.replace(/\D/g, "");
-
-    if (!factorId) {
-      setMessage("No two-factor factor was found for this account.");
-      return;
-    }
-
-    if (cleanCode.length !== 6) {
-      setMessage("Enter the 6-digit authenticator code.");
-      return;
-    }
-
-    setChecking(true);
-    setMessage("");
-
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
-
-    if (challengeError) {
-      setMessage(challengeError.message);
-      setChecking(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.mfa.verify({
-      factorId,
-      challengeId: challenge.id,
-      code: cleanCode
-    });
-
-    if (error) {
-      setMessage(error.message);
-      setChecking(false);
-      return;
-    }
-
-    setToast?.("Two-factor check complete.");
-    setChecking(false);
-    onVerified?.();
-  }
-
-  return <main className="login-screen">
-    <PhotoReel />
-    <section className="login-card">
-      <h1>Two-Factor Authentication</h1>
-      <p>Enter the 6-digit code from your authenticator app.</p>
-      <form onSubmit={submit}>
-        <label>Authenticator Code<input className="mfa-code-input" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
-        <button className="primary full" disabled={checking}>{checking ? "Checking..." : "Verify"}</button>
-      </form>
-      <button className="text" onClick={() => supabase.auth.signOut()}>Log out</button>
-      {message && <p className="login-message">{message}</p>}
-    </section>
-  </main>;
-}
-
 function Landing({ setEntry }) {
   return <main className="landing">
     <PhotoReel />
@@ -597,145 +500,6 @@ function OwnerApp({ profile, tab, setTab, setToast, stable, setStable, setProfil
 }
 
 
-
-function MfaSettings({ setToast }) {
-  const [loading, setLoading] = useState(false);
-  const [factors, setFactors] = useState([]);
-  const [enrollment, setEnrollment] = useState(null);
-  const [code, setCode] = useState("");
-
-  useEffect(() => {
-    loadFactors();
-  }, []);
-
-  async function loadFactors() {
-    const { data, error } = await supabase.auth.mfa.listFactors();
-
-    if (error) {
-      setToast(error.message);
-      return;
-    }
-
-    setFactors(data?.totp || []);
-  }
-
-  async function startEnrollment() {
-    setLoading(true);
-    setCode("");
-
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: "The Trotting Stable App"
-    });
-
-    if (error) {
-      setToast(error.message);
-      setLoading(false);
-      return;
-    }
-
-    setEnrollment(data);
-    setLoading(false);
-  }
-
-  async function verifyEnrollment(event) {
-    event.preventDefault();
-
-    if (!enrollment?.id) {
-      setToast("Start two-factor setup first.");
-      return;
-    }
-
-    const cleanCode = code.replace(/\D/g, "");
-
-    if (cleanCode.length !== 6) {
-      setToast("Enter the 6-digit authenticator code.");
-      return;
-    }
-
-    setLoading(true);
-
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId: enrollment.id
-    });
-
-    if (challengeError) {
-      setToast(challengeError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.mfa.verify({
-      factorId: enrollment.id,
-      challengeId: challenge.id,
-      code: cleanCode
-    });
-
-    if (error) {
-      setToast(error.message);
-      setLoading(false);
-      return;
-    }
-
-    setToast("Two-factor authentication enabled.");
-    setEnrollment(null);
-    setCode("");
-    await loadFactors();
-    setLoading(false);
-  }
-
-  async function disableFactor(factorId) {
-    if (!confirm("Disable two-factor authentication for this account?")) return;
-
-    setLoading(true);
-
-    const { error } = await supabase.auth.mfa.unenroll({ factorId });
-
-    if (error) {
-      setToast(error.message);
-    } else {
-      setToast("Two-factor authentication disabled.");
-      await loadFactors();
-    }
-
-    setLoading(false);
-  }
-
-  const verifiedFactors = factors.filter(factor => factor.status === "verified");
-  const pendingFactors = factors.filter(factor => factor.status !== "verified");
-  const enabled = verifiedFactors.length > 0;
-
-  return <div className="settings-actions mfa-settings">
-    <p className={`security-status ${enabled ? "enabled" : "disabled"}`}>
-      {enabled ? "2FA enabled for this account" : "2FA not enabled for this account"}
-    </p>
-
-    <p className="muted">
-      Designed for fresh logins/new browsers/new devices. If a trainer stays logged in on the same device, they should not be interrupted every morning.
-    </p>
-
-    {enabled && verifiedFactors.map(factor => <div className="factor-row" key={factor.id}>
-      <span>{factor.friendly_name || "Authenticator app"}</span>
-      <button className="danger small" type="button" disabled={loading} onClick={() => disableFactor(factor.id)}>Disable</button>
-    </div>)}
-
-    {!enabled && !enrollment && <button className="ghost" type="button" disabled={loading} onClick={startEnrollment}>
-      {loading ? "Starting..." : "Enable Two-Factor Authentication"}
-    </button>}
-
-    {enrollment && <form className="form-grid" onSubmit={verifyEnrollment}>
-      <p className="muted">Scan this QR code with Google Authenticator, Authy, 1Password or another authenticator app, then enter the 6-digit code.</p>
-      {enrollment.totp?.qr_code && <div className="qr-card"><img src={enrollment.totp.qr_code} alt="Two-factor setup QR code" /></div>}
-      {enrollment.totp?.secret && <p className="muted">Manual setup key: <strong>{enrollment.totp.secret}</strong></p>}
-      <label className="field"><span>6-digit code</span><input className="mfa-code-input" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
-      <button className="primary full" disabled={loading}>{loading ? "Verifying..." : "Verify and Enable 2FA"}</button>
-      <button className="text" type="button" onClick={() => { setEnrollment(null); setCode(""); }}>Cancel setup</button>
-    </form>}
-
-    {pendingFactors.length > 0 && !enrollment && <button className="text" type="button" disabled={loading} onClick={() => disableFactor(pendingFactors[0].id)}>Clear unfinished 2FA setup</button>}
-  </div>;
-}
-
 function SettingsPanel({ profile, stable, setStable, setProfile, setToast, ownerMode = false }) {
   const [name, setName] = useState(profile.full_name || profile.owner_name || "");
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
@@ -783,39 +547,26 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
 
     setSaving(true);
 
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("stables")
       .update({ name: nextName })
       .eq("id", profile.stable_id);
 
-    if (updateError) {
-      setToast(updateError.message);
-      setSaving(false);
-      return;
+    if (error) {
+      setToast(error.message);
+    } else {
+      const updatedStable = {
+        ...(stable || {}),
+        id: profile.stable_id,
+        name: nextName
+      };
+
+      setStable?.(updatedStable);
+      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
+      setStableName(nextName);
+      setToast("Stable settings saved.");
     }
 
-    const { data: refreshedStable, error: refreshError } = await supabase
-      .from("stables")
-      .select("*")
-      .eq("id", profile.stable_id)
-      .maybeSingle();
-
-    if (refreshError) {
-      setToast(refreshError.message);
-      setSaving(false);
-      return;
-    }
-
-    const updatedStable = refreshedStable || {
-      ...(stable || {}),
-      id: profile.stable_id,
-      name: nextName
-    };
-
-    setStable?.(updatedStable);
-    setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
-    setStableName(updatedStable.name || nextName);
-    setToast("Stable settings saved.");
     setSaving(false);
   }
 
@@ -868,10 +619,10 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
 
       <article className="settings-card">
         <h3>Security</h3>
-        <p>Manage password reset and optional authenticator-app two-factor authentication.</p>
+        <p>Password reset works now. Two-factor authentication will be added here next.</p>
         <div className="settings-actions">
           <button className="ghost" type="button" onClick={sendPasswordReset}>Send Password Reset Email</button>
-          <MfaSettings setToast={setToast} />
+          <button className="ghost" type="button" disabled>Two-Factor Authentication — Coming Next</button>
         </div>
       </article>
 
