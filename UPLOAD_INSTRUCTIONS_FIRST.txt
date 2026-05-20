@@ -1,31 +1,22 @@
-MAIN.JSX WITH 2FA PATCH - BUILD VERIFIED
+SEPARATE 2FA COMPONENTS PATCH
 
-Use this carefully:
+This patch does NOT touch package.json, package-lock.json, styles.css, or SQL.
 
-1. Do NOT replace package.json.
-2. Do NOT replace package-lock.json.
-3. Do NOT replace styles.css.
-4. Only replace src/main.jsx with the src/main.jsx inside this ZIP.
+Upload/copy only these files:
+1. src/main.jsx
+2. src/components/MfaSettings.jsx
+3. src/components/MfaChallenge.jsx
 
 Commit message:
-Add verified 2FA main JSX
+Add 2FA as separate components
 
 Supabase requirement:
 Authentication > Multi-Factor > TOTP must be enabled.
 
-What this adds:
-- Settings > Security shows 2FA status
-- Start 2FA enrollment
-- QR code display in Settings
-- 6-digit code verification
-- Disable 2FA
-- Challenge screen on fresh login/new browser/new device for verified 2FA users
-
-What it preserves:
-- Existing app layout/components from the uploaded source
-- Stable name save logic
-- Owner portal/stable portal structure
-- Package files
-
 Rollback:
 If anything goes wrong, revert only this commit.
+
+Notes:
+- Existing remembered sessions should not be interrupted every morning.
+- Verified 2FA users are challenged on fresh login/new browser/new device when Supabase requires aal2.
+- I did not run a full npm build here because the build step itself is what has been hanging.
