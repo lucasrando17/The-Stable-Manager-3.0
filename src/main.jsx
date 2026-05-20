@@ -10,7 +10,6 @@ import {
   Users, Wheat, X
 } from "lucide-react";
 import "./styles.css";
-import SecuritySettings from "./pages/security/SecuritySettings.jsx";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
@@ -619,7 +618,12 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>}
 
       <article className="settings-card">
-        <SecuritySettings supabase={supabase} setToast={setToast} onSendPasswordReset={sendPasswordReset} />
+        <h3>Security</h3>
+        <p>Password reset works now. Two-factor authentication will be added here next.</p>
+        <div className="settings-actions">
+          <button className="ghost" type="button" onClick={sendPasswordReset}>Send Password Reset Email</button>
+          <button className="ghost" type="button" disabled>Two-Factor Authentication — Coming Next</button>
+        </div>
       </article>
 
       <article className="settings-card">
