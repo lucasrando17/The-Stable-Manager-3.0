@@ -380,8 +380,9 @@ function useSiteSettings() {
   return content;
 }
 
-function Landing({ setEntry }) {
-  const content = useSiteSettings();
+function Landing({ setEntry, previewContent = null }) {
+  const liveContent = useSiteSettings();
+  const content = previewContent || liveContent;
   const features = ["operations", "owners", "calendar", "invoices", "analytics", "media"];
 
   return <main className="landing" style={{
@@ -757,59 +758,134 @@ const editableWebsiteFields = [
 
 function WebsiteEditor({ setToast }) {
   const [values, setValues] = useState(landingDefaults);
+  const [published, setPublished] = useState(landingDefaults);
+  const [savedDraft, setSavedDraft] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [dirty, setDirty] = useState({});
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     let active = true;
-    supabase.from("site_settings").select("key,value").then(({ data, error }) => {
+    async function load() {
+      const [liveResult, draftResult] = await Promise.all([
+        supabase.from("site_settings").select("key,value"),
+        supabase.from("site_settings_drafts").select("key,value")
+      ]);
       if (!active) return;
-      if (error) setToast(`Website settings: ${error.message}`);
-      else setValues({ ...landingDefaults, ...Object.fromEntries((data || []).map(({ key, value }) => [key, value ?? ""])) });
+      if (liveResult.error || draftResult.error) {
+        setToast(`Unable to load website editor: ${(liveResult.error || draftResult.error).message}`);
+        setLoading(false);
+        return;
+      }
+      const live = { ...landingDefaults, ...Object.fromEntries((liveResult.data || []).map(({ key, value }) => [key, value ?? ""])) };
+      const drafts = Object.fromEntries((draftResult.data || []).map(({ key, value }) => [key, value ?? ""]));
+      setPublished(live);
+      setSavedDraft(drafts);
+      setValues({ ...live, ...drafts });
       setLoading(false);
-    });
+    }
+    load();
     return () => { active = false; };
   }, []);
+
+  const hasUnsavedChanges = Object.keys(dirty).length > 0;
+  const hasSavedDraft = Object.keys(savedDraft).length > 0;
 
   function change(key, value) {
     setValues(current => ({ ...current, [key]: value }));
     setDirty(current => ({ ...current, [key]: true }));
   }
 
-  async function save(event) {
-    event.preventDefault();
+  async function saveDraft(event) {
+    if (event) event.preventDefault();
     const keys = Object.keys(dirty);
     if (!keys.length) return;
     setSaving(true);
-    const { error } = await supabase.from("site_settings").upsert(
-      keys.map(key => ({ key, value: values[key] ?? "" })), { onConflict: "key" }
+    const changes = Object.fromEntries(keys.map(key => [key, values[key] ?? ""]));
+    const { error } = await supabase.from("site_settings_drafts").upsert(
+      keys.map(key => ({ key, value: changes[key] })), { onConflict: "key" }
     );
     setSaving(false);
-    if (error) setToast(`Could not save website: ${error.message}`);
-    else {
-      setDirty({});
-      setToast("Website settings saved. Refresh the public homepage to see changes.");
+    if (error) {
+      setToast(`Could not save draft: ${error.message}`);
+      return;
+    }
+    setSavedDraft(current => ({ ...current, ...changes }));
+    setDirty({});
+    setToast("Draft saved privately. The public website has not changed.");
+  }
+
+  async function publish() {
+    if (hasUnsavedChanges) {
+      setToast("Save your draft before publishing.");
+      return;
+    }
+    if (!hasSavedDraft) {
+      setToast("There is no saved draft to publish.");
+      return;
+    }
+    if (!window.confirm("Publish your saved website draft to the public website now?")) return;
+    setPublishing(true);
+    const entries = Object.entries(savedDraft).map(([key, value]) => ({ key, value }));
+    const { error } = await supabase.from("site_settings").upsert(entries, { onConflict: "key" });
+    if (error) {
+      setPublishing(false);
+      setToast(`Publishing failed: ${error.message}`);
+      return;
+    }
+    const { error: clearError } = await supabase.from("site_settings_drafts").delete()
+      .in("key", Object.keys(savedDraft));
+    setPublishing(false);
+    setPublished(current => ({ ...current, ...savedDraft }));
+    if (clearError) {
+      setToast(`Published successfully, but the draft could not be cleared: ${clearError.message}`);
+    } else {
+      setSavedDraft({});
+      setToast("Website published! Refresh the public homepage to see the changes.");
     }
   }
 
   return <article className="settings-card" style={{ gridColumn: "1 / -1" }}>
     <h3>Website Editor</h3>
-    <p>Edit the public homepage and login text. Changes go live after saving and refreshing the website.</p>
-    {loading ? <p>Loading website settings...</p> : <form onSubmit={save} className="form-grid">
-      {editableWebsiteFields.map(([section, fields]) => <fieldset key={section} style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, minWidth: 0 }}>
-        <legend style={{ fontWeight: 700, padding: "0 8px" }}>{section}</legend>
-        {fields.map(([key, label]) => <label className="field" key={key}>
-          <span>{label}</span>
-          {key.endsWith("_description") || key === "hero_description"
-            ? <textarea rows={3} value={values[key] ?? ""} onChange={e => change(key, e.target.value)} />
-            : <input value={values[key] ?? ""} onChange={e => change(key, e.target.value)} />}
-        </label>)}
-      </fieldset>)}
-      <button className="primary full" type="submit" disabled={saving || !Object.keys(dirty).length}>
-        {saving ? "Saving..." : "Save Website Changes"}
-      </button>
-    </form>}
+    <p>Save a private draft, preview it, then publish when you're ready. Saving a draft never changes the public website.</p>
+    {loading ? <p>Loading website settings...</p> : <>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+        <button className="ghost" type="button" onClick={() => setPreview(true)}>Preview draft</button>
+        <button className="primary" type="button" disabled={saving || !hasUnsavedChanges} onClick={saveDraft}>
+          {saving ? "Saving..." : "Save Draft"}
+        </button>
+        <button className="primary" type="button" disabled={publishing || saving || hasUnsavedChanges || !hasSavedDraft} onClick={publish}>
+          {publishing ? "Publishing..." : "Publish Changes"}
+        </button>
+      </div>
+      <p style={{ fontSize: 13 }}>
+        {hasUnsavedChanges ? "You have unsaved edits. Save Draft before publishing."
+          : hasSavedDraft ? "Private draft saved. Review the preview and publish when ready."
+          : "No unpublished draft. Your editor matches the public website."}
+      </p>
+      <form onSubmit={saveDraft} className="form-grid">
+        {editableWebsiteFields.map(([section, fields]) => <fieldset key={section} style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, minWidth: 0 }}>
+          <legend style={{ fontWeight: 700, padding: "0 8px" }}>{section}</legend>
+          {fields.map(([key, label]) => <label className="field" key={key}>
+            <span>{label}</span>
+            {key.endsWith("_description") || key === "hero_description"
+              ? <textarea rows={3} value={values[key] ?? ""} onChange={e => change(key, e.target.value)} />
+              : <input value={values[key] ?? ""} onChange={e => change(key, e.target.value)} />}
+          </label>)}
+        </fieldset>)}
+      </form>
+      {preview && <div role="dialog" aria-modal="true" aria-label="Website draft preview"
+        style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#0b1026", overflow: "auto" }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 10000, background: "#fff", padding: "10px 18px",
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <strong>PRIVATE PREVIEW — not published</strong>
+          <button type="button" className="primary" onClick={() => setPreview(false)}>Close Preview</button>
+        </div>
+        <Landing setEntry={() => {}} previewContent={values} />
+      </div>}
+    </>}
   </article>;
 }
 
