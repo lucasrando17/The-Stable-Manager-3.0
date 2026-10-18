@@ -327,7 +327,45 @@ function PasswordResetForm({ onDone, setToast }) {
 }
 
 
+const landingDefaults = {
+  hero_eyebrow: "HARNESS RACING STABLE SOFTWARE",
+  hero_title: "Stable operations and owner communication in one platform.",
+  hero_description: "Separate access points for trainers/staff and owners, with role-based permissions and a proper owners portal.",
+  feature_operations: "Stable Operations",
+  feature_owners: "Owners Portal",
+  feature_calendar: "Phone Calendar",
+  feature_invoices: "Invoices",
+  feature_analytics: "Analytics",
+  feature_media: "Media Updates",
+  feature_operations_description: "Included in the clean final rebuild.",
+  feature_owners_description: "Included in the clean final rebuild.",
+  feature_calendar_description: "Included in the clean final rebuild.",
+  feature_invoices_description: "Included in the clean final rebuild.",
+  feature_analytics_description: "Included in the clean final rebuild.",
+  feature_media_description: "Included in the clean final rebuild."
+};
+
 function Landing({ setEntry }) {
+  const [content, setContent] = useState(landingDefaults);
+
+  useEffect(() => {
+    let active = true;
+    async function loadLandingContent() {
+      const { data, error } = await supabase.from("site_settings").select("key,value");
+      if (!active) return;
+      if (error) {
+        console.error("Unable to load landing page settings:", error.message);
+        return;
+      }
+      const settings = Object.fromEntries((data || []).map(({ key, value }) => [key, value]));
+      setContent({ ...landingDefaults, ...settings });
+    }
+    loadLandingContent();
+    return () => { active = false; };
+  }, []);
+
+  const features = ["operations", "owners", "calendar", "invoices", "analytics", "media"];
+
   return <main className="landing">
     <PhotoReel />
     <header className="landing-nav">
@@ -339,16 +377,19 @@ function Landing({ setEntry }) {
       </div>
     </header>
     <section className="hero">
-      <p className="eyebrow">Harness racing stable software</p>
-      <h1>Stable operations and owner communication in one platform.</h1>
-      <p>Separate access points for trainers/staff and owners, with role-based permissions and a proper owners portal.</p>
+      <p className="eyebrow">{content.hero_eyebrow}</p>
+      <h1>{content.hero_title}</h1>
+      <p>{content.hero_description}</p>
       <div className="hero-actions">
         <button className="primary light" onClick={() => setEntry("stableLogin")}>Stable Login</button>
         <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>Owners Portal</button>
       </div>
     </section>
     <section className="feature-grid">
-      {["Stable Operations","Owners Portal","Phone Calendar","Invoices","Analytics","Media Updates"].map(x => <article className="feature-card" key={x}><h3>{x}</h3><p>Included in the clean final rebuild.</p></article>)}
+      {features.map(name => <article className="feature-card" key={name}>
+        <h3>{content[`feature_${name}`]}</h3>
+        <p>{content[`feature_${name}_description`]}</p>
+      </article>)}
     </section>
   </main>;
 }
