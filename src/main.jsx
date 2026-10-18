@@ -9,7 +9,7 @@ import {
   Package, Plus, Printer, Search, Settings, Share2, ShieldCheck, Trash2, Trophy,
   Users, Wheat, X
 } from "lucide-react";
-import "./styles.css";
+import "../styles.css";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
