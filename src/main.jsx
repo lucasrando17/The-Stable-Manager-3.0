@@ -572,6 +572,26 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
   const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
   const [saving, setSaving] = useState(false);
+  const [isWebsiteAdmin, setIsWebsiteAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function checkWebsiteAdmin() {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (!active || authError || !authData?.user) return;
+      const { data, error } = await supabase
+        .from("website_admins")
+        .select("user_id")
+        .eq("user_id", authData.user.id)
+        .maybeSingle();
+      if (active) {
+        if (error) console.error("Website administrator check failed:", error);
+        setIsWebsiteAdmin(!error && !!data);
+      }
+    }
+    if (!ownerMode) checkWebsiteAdmin();
+    return () => { active = false; };
+  }, [ownerMode]);
 
   async function saveAccount(event) {
     event.preventDefault();
@@ -684,6 +704,8 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
+      {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
+
       <article className="settings-card">
         <h3>Security</h3>
         <p>Password reset works now. Two-factor authentication will be added here next.</p>
@@ -702,6 +724,93 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>
     </section>
   </main>;
+}
+
+const editableWebsiteFields = [
+  ["Branding", [
+    ["site_name", "Website name"], ["site_logo_url", "Logo public URL"],
+    ["hero_background_url", "Homepage background public URL"]
+  ]],
+  ["Homepage", [
+    ["hero_eyebrow", "Small heading"], ["hero_title", "Main heading"],
+    ["hero_description", "Introduction"]
+  ]],
+  ["Buttons and navigation", [
+    ["hero_primary_button", "Main button"], ["hero_secondary_button", "Secondary button"],
+    ["nav_stable_login", "Navigation: Stable Login"],
+    ["nav_owner_login", "Navigation: Owners Portal"],
+    ["nav_invite_signup", "Navigation: Invite signup"]
+  ]],
+  ["Login pages", [
+    ["login_stable_title", "Stable login title"],
+    ["login_stable_description", "Stable login description"],
+    ["login_owner_title", "Owner login title"],
+    ["login_owner_description", "Owner login description"]
+  ]],
+  ["Feature cards", [
+    ...["operations", "owners", "calendar", "invoices", "analytics", "media"].flatMap(name => [
+      [`feature_${name}`, `${name} title`],
+      [`feature_${name}_description`, `${name} description`]
+    ])
+  ]]
+];
+
+function WebsiteEditor({ setToast }) {
+  const [values, setValues] = useState(landingDefaults);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState({});
+
+  useEffect(() => {
+    let active = true;
+    supabase.from("site_settings").select("key,value").then(({ data, error }) => {
+      if (!active) return;
+      if (error) setToast(`Website settings: ${error.message}`);
+      else setValues({ ...landingDefaults, ...Object.fromEntries((data || []).map(({ key, value }) => [key, value ?? ""])) });
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  function change(key, value) {
+    setValues(current => ({ ...current, [key]: value }));
+    setDirty(current => ({ ...current, [key]: true }));
+  }
+
+  async function save(event) {
+    event.preventDefault();
+    const keys = Object.keys(dirty);
+    if (!keys.length) return;
+    setSaving(true);
+    const { error } = await supabase.from("site_settings").upsert(
+      keys.map(key => ({ key, value: values[key] ?? "" })), { onConflict: "key" }
+    );
+    setSaving(false);
+    if (error) setToast(`Could not save website: ${error.message}`);
+    else {
+      setDirty({});
+      setToast("Website settings saved. Refresh the public homepage to see changes.");
+    }
+  }
+
+  return <article className="settings-card" style={{ gridColumn: "1 / -1" }}>
+    <h3>Website Editor</h3>
+    <p>Edit the public homepage and login text. Changes go live after saving and refreshing the website.</p>
+    {loading ? <p>Loading website settings...</p> : <form onSubmit={save} className="form-grid">
+      {editableWebsiteFields.map(([section, fields]) => <fieldset key={section} style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, minWidth: 0 }}>
+        <legend style={{ fontWeight: 700, padding: "0 8px" }}>{section}</legend>
+        {fields.map(([key, label]) => <label className="field" key={key}>
+          <span>{label}</span>
+          {key.endsWith("_description") || key === "hero_description"
+            ? <textarea rows={3} value={values[key] ?? ""} onChange={e => change(key, e.target.value)} />
+            : <input value={values[key] ?? ""} onChange={e => change(key, e.target.value)} />}
+        </label>)}
+      </fieldset>)}
+      <button className="primary full" type="submit" disabled={saving || !Object.keys(dirty).length}>
+        {saving ? "Saving..." : "Save Website Changes"}
+      </button>
+    </form>}
+  </article>;
 }
 
 function Dashboard({ stableId, setTab }) {
