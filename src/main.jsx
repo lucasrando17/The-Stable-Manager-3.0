@@ -245,20 +245,7 @@ function App() {
     ? { ...profile, stable_id: activeStableId, role: "admin", is_trainer: true, stables: activeStable }
     : profile;
 
-  return <div className="app" style={brand ? {"--stable-primary": brand.primary_color, "--stable-accent": brand.accent_color, "--stable-background": brand.background_color} : {}}>
-    {brand && <style>{`
-      /* Stable identity is an accent, not a full-screen paint bucket. */
-      .app .page { background: #f5f7fb !important; }
-      .app .topbar { border-bottom: 1px solid #e1e7f0 !important; position: relative; }
-      .app .topbar::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 100%; height: 3px; background: var(--stable-accent); opacity: .85; pointer-events: none; }
-      .app .nav button.active { background: #12213c !important; border-color: #12213c !important; color: #fff !important; }
-      .app .nav button.active svg { color: #fff !important; }
-      .app button.primary { background: #12213c !important; border-color: #12213c !important; color: #fff !important; }
-      .app button.primary:hover { background: #223b61 !important; }
-      .app .module-icon { color: #12213c !important; }
-      .app .topbar h1 { color: #101b30; }
-      .app .topbar img[alt="Stable logo"] { background: white; padding: 5px; border: 1px solid #e3e8f0; box-shadow: 0 2px 8px rgba(12,25,45,.06); }
-    `}</style>}
+  return <div className="app">
     {isSuperAdmin && <style>{ADMIN_UI_CSS}</style>}
     {toast && <div className="toast">{toast}</div>}
     <header className="topbar">
@@ -1096,12 +1083,13 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
   const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
   const [saving, setSaving] = useState(false);
-  const [branding, setBranding] = useState({primary_color:"#0d1730",accent_color:"#d9a441",background_color:"#f5f7fb",logo_data:null});
+  const [branding, setBranding] = useState({logo_data:null});
   const [brandSaving, setBrandSaving] = useState(false);
   useEffect(() => {
     if (!profile.stable_id) return;
-    supabase.from("stable_branding").select("*").eq("stable_id", profile.stable_id).maybeSingle()
-      .then(({data}) => {if(data) setBranding(old=>({...old,...data}));});
+    setBranding({logo_data:null});
+    supabase.from("stable_branding").select("logo_data").eq("stable_id", profile.stable_id).maybeSingle()
+      .then(({data}) => { if (data) setBranding({logo_data:data.logo_data || null}); });
   }, [profile.stable_id]);
   async function pickLogo(event) {
     const file = event.target.files?.[0]; if (!file) return;
@@ -1121,8 +1109,15 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
   }
   async function saveBranding(event) {
     event.preventDefault(); setBrandSaving(true);
-    const {error} = await supabase.from("stable_branding").upsert({stable_id:profile.stable_id,primary_color:branding.primary_color,accent_color:branding.accent_color,background_color:branding.background_color,logo_data:branding.logo_data},{onConflict:"stable_id"});
-    setBrandSaving(false); setToast(error ? error.message : "Branding saved. Open another tab to see the updated theme.");
+    const {error} = await supabase.from("stable_branding").upsert({
+      stable_id: profile.stable_id,
+      logo_data: branding.logo_data,
+      primary_color: "#0d1730",
+      accent_color: "#d9a441",
+      background_color: "#f5f7fb"
+    }, {onConflict:"stable_id"});
+    setBrandSaving(false);
+    setToast(error ? error.message : "Stable logo saved. Your team will see it in the header.");
   }
   async function saveAccount(event) {
     event.preventDefault();
@@ -1227,7 +1222,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
 
       {!ownerMode && profile.role === "admin" && <article className="settings-card">
         <h3>Stable</h3>
-        <p>Basic stable identity and branding. Logo upload can be added next.</p>
+        <p>Manage your stable name and account details.</p>
         <form className="form-grid" onSubmit={saveStable}>
           <label className="field"><span>Stable Name</span><input value={stableName} onChange={event => setStableName(event.target.value)} /></label>
           <label className="field"><span>Stable ID</span><input value={profile.stable_id || ""} disabled /></label>
@@ -1235,14 +1230,37 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
-      {!ownerMode && (profile.role === "admin" || isSuperAdmin) && <article className="settings-card">
-        <h3>Stable Branding</h3><p>Customise the appearance of your stable's workspace. The logo and colour scheme are shared with its members.</p>
-        <form className="form-grid" onSubmit={saveBranding}>
-          <label className="field"><span>Stable Logo (PNG, JPG or WebP)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo}/></label>
-          {branding.logo_data && <div style={{display:"flex",alignItems:"center",gap:14}}><img src={branding.logo_data} alt="Logo preview" style={{width:86,height:86,objectFit:"contain"}}/><button type="button" className="ghost" onClick={()=>setBranding(old=>({...old,logo_data:null}))}>Remove logo</button></div>}
-          {[["primary_color","Primary colour"],["accent_color","Accent colour"],["background_color","Background colour"]].map(([key,label])=><label className="field" key={key}><span>{label}</span><div style={{display:"flex",alignItems:"center",gap:12}}><input type="color" value={branding[key]} onChange={e=>setBranding(old=>({...old,[key]:e.target.value}))} style={{width:64,height:42,padding:2}}/><strong>{branding[key]}</strong></div></label>)}
-          <div style={{borderRadius:14,padding:18,background:"#f5f7fb",border:"1px solid #dfe5ef",overflow:"hidden"}}><div style={{display:"flex",alignItems:"center",gap:10,background:"white",padding:12,borderRadius:10,borderBottom:`3px solid ${branding.accent_color}`}}>{branding.logo_data && <img src={branding.logo_data} alt="" style={{width:40,height:40,objectFit:"contain"}}/>}<strong>Live workspace preview</strong></div><div style={{display:"flex",gap:10,marginTop:12}}><div style={{background:"white",borderRadius:9,padding:13,flex:1,border:"1px solid #e5eaf1"}}>Horses<br/><strong>12</strong></div><div style={{background:"white",borderRadius:9,padding:13,flex:1,border:"1px solid #e5eaf1"}}>Work<br/><strong>8</strong></div></div><p style={{fontSize:12,color:"#66758e",margin:"12px 0 0"}}>Colours are used as subtle brand accents. The dashboard stays neutral for readability.</p></div>
-          <button className="primary full" disabled={brandSaving}>{brandSaving ? "Saving..." : "Save Stable Branding"}</button>
+      {!ownerMode && (profile.role === "admin" || isSuperAdmin) && <article className="settings-card" style={{padding:0,overflow:"hidden",borderRadius:20}}>
+        <div style={{padding:"25px 28px",background:"linear-gradient(115deg,#111e35,#253753)",color:"white"}}>
+          <div style={{fontSize:12,fontWeight:800,letterSpacing:".12em",opacity:.7,textTransform:"uppercase",marginBottom:8}}>Stable identity</div>
+          <h3 style={{color:"white",fontSize:25,margin:"0 0 8px"}}>Your stable logo</h3>
+          <p style={{color:"#d3deed",margin:0,maxWidth:550}}>Give your team a recognisable identity. Your logo appears beside your stable name across the app. The rest of the interface stays clean and consistent.</p>
+        </div>
+        <form onSubmit={saveBranding} style={{padding:28,display:"grid",gap:20}}>
+          <div style={{display:"flex",gap:22,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{width:124,height:124,borderRadius:20,background:"#f5f7fb",border:"1px solid #dce3ed",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+              {branding.logo_data ? <img src={branding.logo_data} alt="Current stable logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:12,boxSizing:"border-box"}}/> : <div style={{textAlign:"center",color:"#7b8aa0",fontWeight:700,fontSize:13}}>No logo<br/>uploaded</div>}
+            </div>
+            <div style={{flex:"1 1 240px"}}>
+              <div style={{fontWeight:800,fontSize:17,marginBottom:5}}>Upload a logo</div>
+              <p style={{fontSize:13,color:"#64748b",margin:"0 0 14px"}}>PNG, JPG or WebP · Maximum 2 MB. A square image or transparent PNG works best.</p>
+              <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"11px 17px",background:"#101c33",color:"white",borderRadius:11,fontWeight:750,cursor:"pointer"}}>
+                Choose image
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo} style={{position:"absolute",width:1,height:1,opacity:0}}/>
+              </label>
+              {branding.logo_data && <button type="button" className="ghost" style={{marginLeft:10}} onClick={()=>setBranding(old=>({...old,logo_data:null}))}>Remove logo</button>}
+            </div>
+          </div>
+          <div style={{padding:17,background:"#f8fafc",border:"1px solid #e4eaf1",borderRadius:14}}>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".1em",color:"#718198",fontWeight:800,marginBottom:12}}>Header preview</div>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:44,height:44,borderRadius:10,background:"white",border:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                {branding.logo_data ? <img src={branding.logo_data} alt="Logo preview" style={{width:"100%",height:"100%",objectFit:"contain",padding:4,boxSizing:"border-box"}}/> : <span style={{fontSize:19}}>♞</span>}
+              </div>
+              <div><div style={{fontSize:11,color:"#64748b"}}>STABLE APP</div><strong style={{fontSize:19,color:"#14223b"}}>{stableName || stable?.name || "Your stable"}</strong></div>
+            </div>
+          </div>
+          <button className="primary full" disabled={brandSaving}>{brandSaving ? "Saving logo..." : "Save Stable Logo"}</button>
         </form>
       </article>}
 
