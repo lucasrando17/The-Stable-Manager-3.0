@@ -1471,6 +1471,12 @@ function InvoicePrint({ invoice, onClose }) {
 
 function HorseProfile({ horse, stableId, role, onClose }) {
   const canEditOwnership = financeRoles.includes(role);
+  const canManagePhotos = financeRoles.includes(role);
+  const [horsePhotos, setHorsePhotos] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [viewPhoto, setViewPhoto] = useState(null);
   const [tab, setTab] = useState("Overview");
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({ owners: [], work: [], races: [], vet: [], farrier: [], feed: [], gear: [], invoices: [] });
@@ -1478,9 +1484,10 @@ function HorseProfile({ horse, stableId, role, onClose }) {
   const dateLabel = value => value ? String(value).slice(0, 10) : "Undated";
   const card = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: 22, marginBottom: 16 };
   const muted = { color: "#64748b" };
-  const tabs = ["Overview", "Activity", "Performance", "Care", "Ownership", ...(canEditOwnership ? ["Finance"] : [])];
+  const tabs = ["Overview", "Photos", "Activity", "Performance", "Care", "Ownership", ...(canEditOwnership ? ["Finance"] : [])];
 
   useEffect(() => { load(); }, [horse.name, stableId, role]);
+  useEffect(() => { loadHorsePhotos(); }, [horse.id]);
 
   async function load() {
     setLoading(true);
@@ -1497,6 +1504,93 @@ function HorseProfile({ horse, stableId, role, onClose }) {
     setData({ owners: owners.data || [], work: work.data || [], races: races.data || [], vet: vet.data || [], farrier: farrier.data || [], feed: feed.data || [], gear: gear.data || [], invoices: invoices.data || [] });
     setLoading(false);
   }
+
+  async function loadHorsePhotos() {
+    setPhotosLoading(true);
+    setPhotoError("");
+    const { data: rows, error } = await supabase.from("horse_photos")
+      .select("id,horse_id,storage_path,is_cover,caption,created_at")
+      .eq("horse_id", horse.id).order("created_at", { ascending: true });
+    if (error) { setPhotoError(error.message); setPhotosLoading(false); return; }
+    const signed = await Promise.all((rows || []).map(async row => {
+      const { data, error: urlError } = await supabase.storage.from("horse-photos")
+        .createSignedUrl(row.storage_path, 3600);
+      return { ...row, url: urlError ? "" : data?.signedUrl || "" };
+    }));
+    setHorsePhotos(signed);
+    setPhotosLoading(false);
+  }
+
+  async function uploadHorsePhotos(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!canManagePhotos || !files.length || photoBusy) return;
+    setPhotoBusy(true);
+    setPhotoError("");
+    let successful = 0;
+    const errors = [];
+    let makeCover = horsePhotos.length === 0;
+    for (const file of files) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        errors.push(`${file.name}: use JPG, PNG or WebP.`); continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        errors.push(`${file.name}: maximum size is 10 MB.`); continue;
+      }
+      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const path = `${horse.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("horse-photos")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadError) { errors.push(`${file.name}: ${uploadError.message}`); continue; }
+      const { error: recordError } = await supabase.from("horse_photos")
+        .insert({ horse_id: horse.id, storage_path: path, is_cover: makeCover });
+      if (recordError) {
+        await supabase.storage.from("horse-photos").remove([path]);
+        errors.push(`${file.name}: ${recordError.message}`);
+      } else { successful++; makeCover = false; }
+    }
+    await loadHorsePhotos();
+    setPhotoBusy(false);
+    if (errors.length) setPhotoError(errors.join(" "));
+    if (successful && !errors.length) setPhotoError("");
+  }
+
+  async function setCoverPhoto(photo) {
+    if (!canManagePhotos || photoBusy || photo.is_cover) return;
+    setPhotoBusy(true); setPhotoError("");
+    const currentCover = horsePhotos.find(p => p.is_cover);
+    if (currentCover) {
+      const { error } = await supabase.from("horse_photos").update({ is_cover: false }).eq("id", currentCover.id).eq("horse_id", horse.id);
+      if (error) { setPhotoError(error.message); setPhotoBusy(false); return; }
+    }
+    const { error } = await supabase.from("horse_photos").update({ is_cover: true }).eq("id", photo.id).eq("horse_id", horse.id);
+    if (error) {
+      if (currentCover) await supabase.from("horse_photos").update({ is_cover: true }).eq("id", currentCover.id).eq("horse_id", horse.id);
+      setPhotoError(error.message);
+    }
+    await loadHorsePhotos(); setPhotoBusy(false);
+  }
+
+  async function deleteHorsePhoto(photo) {
+    if (!canManagePhotos || photoBusy || !window.confirm("Permanently delete this photograph?")) return;
+    setPhotoBusy(true); setPhotoError("");
+    // Remove the storage object first so a failed storage deletion does not leave an orphaned file.
+    const { error: storageError } = await supabase.storage.from("horse-photos").remove([photo.storage_path]);
+    if (storageError) { setPhotoError(storageError.message); setPhotoBusy(false); return; }
+    const { error } = await supabase.from("horse_photos").delete().eq("id", photo.id).eq("horse_id", horse.id);
+    if (error) setPhotoError(error.message);
+    else if (photo.is_cover) {
+      const replacement = horsePhotos.find(p => p.id !== photo.id);
+      if (replacement) {
+        const { error: coverError } = await supabase.from("horse_photos").update({ is_cover: true }).eq("id", replacement.id).eq("horse_id", horse.id);
+        if (coverError) setPhotoError(coverError.message);
+      }
+    }
+    setViewPhoto(null);
+    await loadHorsePhotos(); setPhotoBusy(false);
+  }
+
+  const coverPhoto = horsePhotos.find(p => p.is_cover && p.url) || horsePhotos.find(p => p.url);
 
   async function addOwner() {
     if (!canEditOwnership) return;
@@ -1531,7 +1625,7 @@ function HorseProfile({ horse, stableId, role, onClose }) {
   return <main className="page" style={{ maxWidth: 1180, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
     <button className="ghost" onClick={onClose} style={{ marginBottom: 18 }}>← Back to Horses</button>
     <section style={{ ...card, display: "flex", flexWrap: "wrap", gap: 22, alignItems: "center" }}>
-      {horse.profile_photo_url ? <img src={horse.profile_photo_url} alt={horse.name} style={{ width: 128, height: 128, objectFit: "cover", borderRadius: 16 }} /> : <div style={{ width: 128, height: 128, borderRadius: 16, background: "#edf2f7", display: "grid", placeItems: "center", flexShrink: 0 }}><HorseIcon size={65}/></div>}
+      {(coverPhoto?.url || horse.profile_photo_url) ? <img src={coverPhoto?.url || horse.profile_photo_url} alt={horse.name} style={{ width: 128, height: 128, objectFit: "cover", borderRadius: 16 }} /> : <div style={{ width: 128, height: 128, borderRadius: 16, background: "#edf2f7", display: "grid", placeItems: "center", flexShrink: 0 }}><HorseIcon size={65}/></div>}
       <div style={{ flex: 1, minWidth: 220 }}>
         <h1 style={{ margin: "0 0 6px", fontSize: "clamp(26px, 4vw, 38px)" }}>{horse.name}</h1>
         <p style={{ ...muted, margin: "0 0 12px" }}>{[horse.stable_name && `Stable name: ${horse.stable_name}`, horse.age && `${horse.age}yo`, horse.sex].filter(Boolean).join(" · ")}</p>
@@ -1549,6 +1643,35 @@ function HorseProfile({ horse, stableId, role, onClose }) {
         <Section title="Horse details"><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 20 }}><Detail label="Stable name" value={horse.stable_name}/><Detail label="Sire" value={horse.sire}/><Detail label="Dam" value={horse.mare}/><Detail label="Age" value={horse.age}/><Detail label="Sex" value={horse.sex}/><Detail label="Trainer" value={horse.trainer}/><Detail label="Current status" value={horse.current_status}/><Detail label="Next target" value={horse.next_target}/></div>{horse.notes && <p style={{ marginBottom: 0 }}>{horse.notes}</p>}</Section>
         <Section title="Recent activity"><Rows rows={activity.slice(0, 6)} render={r => <><strong>{r.title}</strong><div style={{ ...muted, fontSize: 13, marginTop: 4 }}>{dateLabel(r.date)} · {r.type}{r.detail && ` · ${r.detail}`}</div></>}/></Section>
       </>}
+      {tab === "Photos" && <Section title="Horse photo gallery">
+        {canManagePhotos && <div style={{ marginBottom: 18 }}>
+          <label className="primary" style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: photoBusy ? "wait" : "pointer", padding: "10px 16px", borderRadius: 10 }}>
+            <Plus size={17}/> {photoBusy ? "Working…" : "Upload photos"}
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={photoBusy} onChange={uploadHorsePhotos} style={{ display: "none" }}/>
+          </label>
+          <p style={{ ...muted, fontSize: 13 }}>JPG, PNG or WebP · up to 10 MB per photo · select multiple files at once.</p>
+        </div>}
+        {photoError && <p role="alert" style={{ color: "#b91c1c", overflowWrap: "anywhere" }}>{photoError}</p>}
+        {photosLoading ? <p>Loading photos…</p> : horsePhotos.length === 0 ? <Empty text="No photographs uploaded yet." /> :
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+            {horsePhotos.map(photo => <article key={photo.id} style={{ border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden", background: "#f8fafc" }}>
+              <button type="button" onClick={() => photo.url && setViewPhoto(photo)} aria-label="View photo full size" style={{ display: "block", width: "100%", padding: 0, border: 0, background: "#e2e8f0", cursor: "pointer" }}>
+                {photo.url ? <img src={photo.url} alt={`${horse.name} gallery`} style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "cover", display: "block" }} /> : <div style={{ padding: 35 }}>Image unavailable</div>}
+              </button>
+              <div style={{ padding: 12, display: "grid", gap: 8 }}>
+                <strong style={{ fontSize: 13 }}>{photo.is_cover ? "★ Cover photo" : "Horse photo"}</strong>
+                {canManagePhotos && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {!photo.is_cover && <button className="ghost" type="button" disabled={photoBusy} onClick={() => setCoverPhoto(photo)} style={{ fontSize: 12 }}>Set as cover</button>}
+                  <button className="delete small" type="button" disabled={photoBusy} onClick={() => deleteHorsePhoto(photo)} aria-label="Delete photo"><Trash2 size={15}/></button>
+                </div>}
+              </div>
+            </article>)}
+          </div>}
+        {viewPhoto?.url && <div role="dialog" aria-modal="true" aria-label="Horse photograph" onClick={() => setViewPhoto(null)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.88)", display: "grid", placeItems: "center", padding: 24 }}>
+          <button type="button" onClick={() => setViewPhoto(null)} aria-label="Close photograph" style={{ position: "absolute", right: 20, top: 20, background: "white", borderRadius: 10, padding: 8 }}><X size={22}/></button>
+          <img src={viewPhoto.url} alt={horse.name} onClick={e => e.stopPropagation()} style={{ maxWidth: "95vw", maxHeight: "88vh", objectFit: "contain" }}/>
+        </div>}
+      </Section>}
       {tab === "Activity" && <Section title="Activity timeline"><Rows rows={activity} render={r => <><div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{r.title}</strong><span style={{ ...muted, fontSize: 13 }}>{dateLabel(r.date)} · {r.type}</span></div>{r.detail && <div style={{ ...muted, marginTop: 6 }}>{r.detail}</div>}</>}/></Section>}
       {tab === "Performance" && <>
         <Section title="Race history"><Rows rows={data.races} render={r => <><strong>{dateLabel(r.date)} · {r.track || "Race"}</strong><p style={{ margin: "5px 0", ...muted }}>{[r.race, r.status, r.result].filter(Boolean).join(" · ")}</p><strong>{money(r.prizemoney)}</strong>{r.replay_url && <p><a href={r.replay_url} target="_blank" rel="noopener noreferrer">Watch replay ↗</a></p>}</>}/></Section>
