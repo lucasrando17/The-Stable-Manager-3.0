@@ -13,14 +13,7 @@ import "../styles.css";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
-const photos = ["/login-photos/photo-1.jpg",
-  "/login-photos/photo-2.jpg",
-  "/login-photos/photo-3.jpg",
-  "/login-photos/photo-4.jpg",
-  "/login-photos/photo-5.jpg",
-  "/login-photos/photo-6.jpg",
-  "/login-photos/photo-7.jpg",
-  "/login-photos/photo-8.jpg"];
+const photos = Array.from({ length: 8 }, (_, i) => `/login-photos/photo-${i + 1}.jpg`);
 
 const WORK_SECTORS = ["Jog - Cart", "Jog- Lead", "Jog- Jogger Machine", "Jog/Canter", "Gallop", "Trot", "Hopple", "Walking Machine", "Water Walk", "Race", "Trial", "Educational Trial", "Swim", "Beach Work", "Recovery"];
 const WARMUP_SECTORS = ["Jog/Canter", "Gallop", "Trot", "Hopple"];
@@ -1141,6 +1134,10 @@ function GenericTable({ stableId, config, setToast, role = "staff" }) {
   const shown = calendar && selectedDate && config.calendarField ? filtered.filter(row => row[config.calendarField] === selectedDate) : filtered;
   const Icon = config.icon;
 
+  if (config.profile === "horse" && modal?.mode === "horseProfile") {
+    return <HorseProfile horse={modal.record} stableId={stableId} role={role} onClose={() => setModal(null)} />;
+  }
+
   return <main className="page">
     <section className="module-header"><div className="module-icon"><Icon size={24}/></div><h2>{config.title}</h2></section>
     <section className="toolbar">
@@ -1161,7 +1158,6 @@ function GenericTable({ stableId, config, setToast, role = "staff" }) {
         <div className="details">{config.display.map(key => <div key={key}><span>{labelize(key)}</span><strong>{formatValue(row[key])}</strong></div>)}</div>
       </article>} />
     </section>
-    {modal?.mode === "horseProfile" && <HorseProfile horse={modal.record} stableId={stableId} role={role} onClose={() => setModal(null)} />}
     {modal?.mode === "ownerProfile" && <OwnerProfile owner={modal.record} stableId={stableId} role={role} onClose={() => setModal(null)} />}
     {canEdit && modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} stableId={stableId} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
   </main>;
@@ -1475,10 +1471,19 @@ function InvoicePrint({ invoice, onClose }) {
 
 function HorseProfile({ horse, stableId, role, onClose }) {
   const canEditOwnership = financeRoles.includes(role);
+  const [tab, setTab] = useState("Overview");
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState({ owners: [], work: [], races: [], vet: [], farrier: [], feed: [], gear: [], invoices: [] });
-  useEffect(() => { load(); }, [horse.name]);
+  const money = value => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(Number(value) || 0);
+  const dateLabel = value => value ? String(value).slice(0, 10) : "Undated";
+  const card = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: 22, marginBottom: 16 };
+  const muted = { color: "#64748b" };
+  const tabs = ["Overview", "Activity", "Performance", "Care", "Ownership", ...(canEditOwnership ? ["Finance"] : [])];
+
+  useEffect(() => { load(); }, [horse.name, stableId, role]);
 
   async function load() {
+    setLoading(true);
     const [owners, work, races, vet, farrier, feed, gear, invoices] = await Promise.all([
       supabase.from("horse_owners").select("*").eq("stable_id", stableId).eq("horse_name", horse.name).order("created_at", { ascending: false }),
       supabase.from("work_entries").select("*").eq("stable_id", stableId).eq("horse_name", horse.name).order("date", { ascending: false }),
@@ -1487,52 +1492,78 @@ function HorseProfile({ horse, stableId, role, onClose }) {
       supabase.from("farrier_records").select("*").eq("stable_id", stableId).eq("horse_name", horse.name).order("farrier_date", { ascending: false }),
       supabase.from("feed_programs").select("*").eq("stable_id", stableId).eq("horse_name", horse.name),
       supabase.from("gear_items").select("*").eq("stable_id", stableId).eq("horse_name", horse.name),
-      financeRoles.includes(role) ? supabase.from("invoices").select("*").eq("stable_id", stableId).eq("horse_name", horse.name) : Promise.resolve({ data: [] })
+      canEditOwnership ? supabase.from("invoices").select("*").eq("stable_id", stableId).eq("horse_name", horse.name) : Promise.resolve({ data: [] })
     ]);
     setData({ owners: owners.data || [], work: work.data || [], races: races.data || [], vet: vet.data || [], farrier: farrier.data || [], feed: feed.data || [], gear: gear.data || [], invoices: invoices.data || [] });
+    setLoading(false);
   }
 
   async function addOwner() {
     if (!canEditOwnership) return;
     const owner_name = prompt("Owner name");
-    const percentage = prompt("Percentage owned");
-    if (!owner_name || !percentage) return;
-    await supabase.from("horse_owners").insert({ stable_id: stableId, horse_name: horse.name, owner_name, percentage: Number(percentage) });
-    load();
+    if (!owner_name?.trim()) return;
+    const percentageInput = prompt("Percentage owned");
+    if (percentageInput === null) return;
+    const percentage = Number(percentageInput);
+    if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 100) { alert("Enter a percentage between 0 and 100."); return; }
+    const { error } = await supabase.from("horse_owners").insert({ stable_id: stableId, horse_name: horse.name, owner_name: owner_name.trim(), percentage });
+    if (error) alert(error.message); else load();
   }
 
   async function deleteShare(id) {
-    if (!canEditOwnership) return;
-    await supabase.from("horse_owners").delete().eq("id", id).eq("stable_id", stableId);
-    load();
+    if (!canEditOwnership || !window.confirm("Remove this owner share?")) return;
+    const { error } = await supabase.from("horse_owners").delete().eq("id", id).eq("stable_id", stableId);
+    if (error) alert(error.message); else load();
   }
 
-  return <div className="modal-backdrop">
-    <section className="modal profile-modal">
-      <div className="modal-head"><h2>{horse.name}</h2><button onClick={onClose}><X size={20}/></button></div>
-      <ProfileSection title="Horse Details">
-        <div className="details">
-          <div><span>Stable Name</span><strong>{horse.stable_name || "-"}</strong></div>
-          <div><span>Sire</span><strong>{horse.sire || "-"}</strong></div>
-          <div><span>Mare</span><strong>{horse.mare || "-"}</strong></div>
-          <div><span>Age</span><strong>{horse.age || "-"}</strong></div>
-          <div><span>Sex</span><strong>{horse.sex || "-"}</strong></div>
-          <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
-        </div>
-      </ProfileSection>
-      {canEditOwnership && <button className="primary" onClick={addOwner}>Add Owner Share</button>}
-      <ProfileSection title="Owners">
-        {data.owners.map(row => <div className="profile-row" key={row.id}><span>{row.owner_name}</span><strong>{row.percentage}%</strong>{canEditOwnership && <button className="delete small" onClick={() => deleteShare(row.id)}><Trash2 size={14}/></button>}</div>)}
-      </ProfileSection>
-      <ProfileSection title="Work"><CollapsibleList rows={data.work} threshold={8} render={row => <SimpleRow key={row.id} left={`${row.date} · ${row.sector}`} right={`Overall: ${row.overall_time || "-"} · Mile: ${row.mile_rate || "-"}`} />} /></ProfileSection>
-      <ProfileSection title="Races">{data.races.map(row => <SimpleRow key={row.id} left={`${row.date} · ${row.track} · ${row.status}`} right={row.result || `$${row.prizemoney || 0}`} />)}</ProfileSection>
-      <ProfileSection title="Vet">{data.vet.map(row => <SimpleRow key={row.id} left={`${row.treatment_date} · ${row.treatment_type}`} right={`$${row.bill_amount || 0}`} />)}</ProfileSection>
-      <ProfileSection title="Farrier">{data.farrier.map(row => <SimpleRow key={row.id} left={`${row.farrier_date} · ${row.service_type}`} right={`$${row.bill_amount || 0}`} />)}</ProfileSection>
-      <ProfileSection title="Feed">{data.feed.map(row => <SimpleRow key={row.id} left={row.morning_feed || row.night_feed || "Feed record"} right={row.supplements || ""} />)}</ProfileSection>
-      <ProfileSection title="Gear">{data.gear.map(row => <SimpleRow key={row.id} left={`${row.item_name} · ${row.category}`} right={row.condition || ""} />)}</ProfileSection>
-      {financeRoles.includes(role) && <ProfileSection title="Bills">{data.invoices.map(row => <SimpleRow key={row.id} left={row.invoice_number} right={`$${row.total || 0}`} />)}</ProfileSection>}
+  const activity = [
+    ...data.work.map(r => ({ type: "Work", date: r.date, title: r.sector || "Work session", detail: [r.distance, r.overall_time && `Overall ${r.overall_time}`, r.mile_rate && `Mile ${r.mile_rate}`, r.notes].filter(Boolean).join(" · ") })),
+    ...data.races.map(r => ({ type: "Race", date: r.date, title: [r.track, r.status].filter(Boolean).join(" · ") || "Race", detail: [r.race, r.result, r.prizemoney != null && money(r.prizemoney)].filter(Boolean).join(" · ") })),
+    ...data.vet.map(r => ({ type: "Vet", date: r.treatment_date, title: r.treatment_type || "Treatment", detail: r.notes || "" })),
+    ...data.farrier.map(r => ({ type: "Farrier", date: r.farrier_date, title: r.service_type || "Farrier visit", detail: r.notes || "" }))
+  ].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+
+  function Empty({ text = "No records yet." }) { return <p style={{ ...muted, margin: "12px 0" }}>{text}</p>; }
+  function Section({ title, children }) { return <section style={card}><h3 style={{ margin: "0 0 16px", fontSize: 18 }}>{title}</h3>{children}</section>; }
+  function Rows({ rows, render }) { return rows.length ? <div style={{ display: "grid", gap: 10 }}>{rows.map((r, i) => <div key={r.id || i} style={{ padding: "12px 14px", borderRadius: 12, background: "#f8fafc", border: "1px solid #e2e8f0" }}>{render(r)}</div>)}</div> : <Empty />; }
+  function Detail({ label, value }) { return <div><div style={{ ...muted, fontSize: 12, marginBottom: 4 }}>{label}</div><strong>{value || "—"}</strong></div>; }
+
+  return <main className="page" style={{ maxWidth: 1180, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+    <button className="ghost" onClick={onClose} style={{ marginBottom: 18 }}>← Back to Horses</button>
+    <section style={{ ...card, display: "flex", flexWrap: "wrap", gap: 22, alignItems: "center" }}>
+      {horse.profile_photo_url ? <img src={horse.profile_photo_url} alt={horse.name} style={{ width: 128, height: 128, objectFit: "cover", borderRadius: 16 }} /> : <div style={{ width: 128, height: 128, borderRadius: 16, background: "#edf2f7", display: "grid", placeItems: "center", flexShrink: 0 }}><HorseIcon size={65}/></div>}
+      <div style={{ flex: 1, minWidth: 220 }}>
+        <h1 style={{ margin: "0 0 6px", fontSize: "clamp(26px, 4vw, 38px)" }}>{horse.name}</h1>
+        <p style={{ ...muted, margin: "0 0 12px" }}>{[horse.stable_name && `Stable name: ${horse.stable_name}`, horse.age && `${horse.age}yo`, horse.sex].filter(Boolean).join(" · ")}</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><span style={{ background: "#e9f7ee", color: "#176b38", borderRadius: 99, padding: "5px 12px", fontSize: 13, fontWeight: 700 }}>{horse.status || "Status not set"}</span>{horse.trainer && <span style={{ background: "#f1f5f9", borderRadius: 99, padding: "5px 12px", fontSize: 13 }}>Trainer: {horse.trainer}</span>}</div>
+      </div>
     </section>
-  </div>;
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 12, marginBottom: 8 }}>
+      {tabs.map(t => <button key={t} className={tab === t ? "primary" : "ghost"} onClick={() => setTab(t)} style={{ flexShrink: 0 }}>{t}</button>)}
+    </div>
+    {loading ? <section style={card}>Loading horse records…</section> : <>
+      {tab === "Overview" && <>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 16 }}>
+          {[["Work sessions", data.work.length], ["Race records", data.races.length], ["Owners", data.owners.length], ["Recent activities", activity.length]].map(([label, value]) => <div key={label} style={{ ...card, marginBottom: 0 }}><div style={{ ...muted, fontSize: 13 }}>{label}</div><div style={{ fontSize: 28, fontWeight: 800, marginTop: 5 }}>{value}</div></div>)}
+        </div>
+        <Section title="Horse details"><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 20 }}><Detail label="Stable name" value={horse.stable_name}/><Detail label="Sire" value={horse.sire}/><Detail label="Dam" value={horse.mare}/><Detail label="Age" value={horse.age}/><Detail label="Sex" value={horse.sex}/><Detail label="Trainer" value={horse.trainer}/><Detail label="Current status" value={horse.current_status}/><Detail label="Next target" value={horse.next_target}/></div>{horse.notes && <p style={{ marginBottom: 0 }}>{horse.notes}</p>}</Section>
+        <Section title="Recent activity"><Rows rows={activity.slice(0, 6)} render={r => <><strong>{r.title}</strong><div style={{ ...muted, fontSize: 13, marginTop: 4 }}>{dateLabel(r.date)} · {r.type}{r.detail && ` · ${r.detail}`}</div></>}/></Section>
+      </>}
+      {tab === "Activity" && <Section title="Activity timeline"><Rows rows={activity} render={r => <><div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{r.title}</strong><span style={{ ...muted, fontSize: 13 }}>{dateLabel(r.date)} · {r.type}</span></div>{r.detail && <div style={{ ...muted, marginTop: 6 }}>{r.detail}</div>}</>}/></Section>}
+      {tab === "Performance" && <>
+        <Section title="Race history"><Rows rows={data.races} render={r => <><strong>{dateLabel(r.date)} · {r.track || "Race"}</strong><p style={{ margin: "5px 0", ...muted }}>{[r.race, r.status, r.result].filter(Boolean).join(" · ")}</p><strong>{money(r.prizemoney)}</strong>{r.replay_url && <p><a href={r.replay_url} target="_blank" rel="noopener noreferrer">Watch replay ↗</a></p>}</>}/></Section>
+        <Section title="Trackwork and sectionals"><Rows rows={data.work} render={r => <><strong>{dateLabel(r.date)} · {r.sector || "Work"}</strong><p style={{ margin: "5px 0", ...muted }}>{[r.distance, r.driver && `Driver: ${r.driver}`, r.overall_time && `Overall: ${r.overall_time}`, r.mile_rate && `Mile: ${r.mile_rate}`, r.last_half && `Last half: ${r.last_half}`, r.last_quarter && `Last quarter: ${r.last_quarter}`].filter(Boolean).join(" · ")}</p>{r.notes && <p style={{ marginBottom: 0 }}>{r.notes}</p>}</>}/></Section>
+      </>}
+      {tab === "Care" && <>
+        <Section title="Veterinary"><Rows rows={data.vet} render={r => <><strong>{dateLabel(r.treatment_date)} · {r.treatment_type || "Treatment"}</strong><div style={muted}>{r.notes || ""}</div></>}/></Section>
+        <Section title="Farrier"><Rows rows={data.farrier} render={r => <><strong>{dateLabel(r.farrier_date)} · {r.service_type || "Farrier visit"}</strong><div style={muted}>{r.notes || ""}</div></>}/></Section>
+        <Section title="Feed"><Rows rows={data.feed} render={r => <><strong>{r.morning_feed || r.night_feed || "Feed programme"}</strong><div style={muted}>{[r.night_feed && `Night: ${r.night_feed}`, r.supplements].filter(Boolean).join(" · ")}</div></>}/></Section>
+        <Section title="Gear"><Rows rows={data.gear} render={r => <><strong>{r.item_name || "Gear"}</strong><div style={muted}>{[r.category, r.condition].filter(Boolean).join(" · ")}</div></>}/></Section>
+      </>}
+      {tab === "Ownership" && <Section title="Ownership register">{canEditOwnership && <button className="primary" onClick={addOwner} style={{ marginBottom: 14 }}><Plus size={16}/> Add owner share</button>}<Rows rows={data.owners} render={r => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ flex: 1 }}>{r.owner_name}</span><strong>{r.percentage}%</strong>{canEditOwnership && <button className="delete small" onClick={() => deleteShare(r.id)} aria-label={`Remove ${r.owner_name}`}><Trash2 size={14}/></button>}</div>}/></Section>}
+      {tab === "Finance" && canEditOwnership && <Section title="Invoices"><Rows rows={data.invoices} render={r => <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><strong>{r.invoice_number || "Invoice"}</strong><strong>{money(r.total)}</strong></div>}/></Section>}
+    </>}
+  </main>;
 }
 
 function OwnerProfile({ owner, stableId, role, onClose }) {
