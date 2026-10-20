@@ -1,13 +1,13 @@
 // COMPLETE FINAL REBUILD V13
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import {
   BadgeCheck, BarChart3, Calendar, ChevronRight, ClipboardList, CreditCard,
   DollarSign, Edit3, FileText, HeartPulse, Home, LogOut, Mail, Megaphone,
   Package, Plus, Printer, Search, Settings, Share2, ShieldCheck, Trash2, Trophy,
-  Users, Wheat, X
+  Users, Wheat, X, ArrowRight, Clock3, Building2, UserRoundCheck, KeyRound, Info, CheckCircle2
 } from "lucide-react";
 import "../styles.css";
 
@@ -116,6 +116,8 @@ const moduleDefs = {
   }
 };
 
+const ADMIN_UI_CSS = '\n/* Super administrator workspace and searchable stable selector */\n.stable-switcher{position:relative;min-width:220px;max-width:min(340px,90vw);z-index:100}\n.stable-switcher-label{display:block;font-size:10px;font-weight:800;letter-spacing:.12em;opacity:.7;margin-bottom:5px}\n.stable-switcher-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(150,160,185,.4);border-radius:12px;padding:8px 11px;background:rgba(255,255,255,.1);color:inherit;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s}\n.stable-switcher-trigger:hover,.stable-switcher-trigger:focus-visible{background:rgba(255,255,255,.18);border-color:rgba(150,160,185,.85);outline:none;box-shadow:0 0 0 3px rgba(100,130,200,.12)}\n.stable-switcher-selected{display:flex;align-items:center;gap:10px;min-width:0;text-align:left;font-weight:650}\n.stable-switcher-selected>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.stable-switcher-avatar{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border-radius:9px;background:rgba(135,155,205,.2)}\n.stable-switcher-chevron{transform:rotate(90deg);transition:transform .2s;flex-shrink:0}.stable-switcher-chevron.open{transform:rotate(-90deg)}\n.stable-switcher-menu{position:absolute;right:0;top:calc(100% + 8px);width:max(100%,285px);max-width:calc(100vw - 32px);border:1px solid #dbe3ef;border-radius:15px;background:#fff;color:#0b1026;box-shadow:0 18px 50px rgba(6,16,40,.2);overflow:hidden;animation:stable-menu-in .16s ease-out}\n@keyframes stable-menu-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}\n.stable-switcher-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid #e7eaf0;color:#64748b}\n.stable-switcher-search input{width:100%;border:0;outline:0;background:transparent;color:#0b1026;font:inherit;box-shadow:none;padding:4px}\n.stable-switcher-options{max-height:300px;overflow:auto;padding:6px}\n.stable-switcher-options button{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;gap:12px;border:0;border-radius:9px;padding:11px 12px;background:transparent;color:#18223b;cursor:pointer;font:inherit;transition:background .15s}\n.stable-switcher-options button:hover{background:#f1f5fb}.stable-switcher-options button.selected{background:#eaf0ff;color:#173c83;font-weight:750}\n.site-admin-page{max-width:1300px;margin-inline:auto}.site-admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 24px;padding:5px;border:1px solid #dbe3ef;border-radius:14px;background:#f3f6fb;width:fit-content}\n.site-admin-tabs button{display:flex;align-items:center;gap:9px;padding:11px 17px;border:0;border-radius:10px;background:transparent;color:#4a556d;font:inherit;font-weight:650;cursor:pointer;transition:background .18s,box-shadow .18s,color .18s}\n.site-admin-tabs button:hover{background:#e8eef8}.site-admin-tabs button.active{background:white;color:#0b1026;box-shadow:0 2px 8px rgba(15,23,42,.1)}\n.site-admin-content{animation:stable-menu-in .2s ease-out}.site-admin-content>.settings-card{margin-bottom:20px}\n@media(max-width:640px){.stable-switcher{width:100%;max-width:100%}.stable-switcher-menu{left:0;right:auto;width:100%}.site-admin-tabs{width:100%}.site-admin-tabs button{flex:1;justify-content:center;font-size:13px}}\n';
+
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -219,7 +221,9 @@ function App() {
   }
 
   if (!profile.stable_id && !isSuperAdmin) {
-    return <StableApplicationOnboarding session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />;
+    return profile.membership_removed
+      ? <MembershipEnded session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />
+      : <StableApplicationOnboarding session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />;
   }
 
   const activeStableId = isSuperAdmin ? selectedStableId : profile.stable_id;
@@ -229,23 +233,23 @@ function App() {
     : profile;
 
   return <div className="app">
+    {isSuperAdmin && <style>{ADMIN_UI_CSS}</style>}
     {toast && <div className="toast">{toast}</div>}
     <header className="topbar">
       <div>
         <p>{isSuperAdmin ? "Super Administrator" : profile.role === "owner" ? "Owners Portal" : "Stable App"}</p>
         <h1>{!isSuperAdmin && profile.role === "owner" ? profile.owner_name || profile.full_name : activeStable?.name || "Select a stable"}</h1>
       </div>
-      {isSuperAdmin && <label style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-        <span>Manage stable</span>
-        <select aria-label="Manage stable" value={selectedStableId} onChange={event => { setSelectedStableId(event.target.value); setTab("dashboard"); }}>
-          {!allStables.length && <option value="">No stables available</option>}
-          {allStables.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      </label>}
+      {isSuperAdmin && <StableSwitcher
+        stables={allStables}
+        selectedId={selectedStableId}
+        onSelect={id => { if (id !== selectedStableId) { setSelectedStableId(id); if (tab !== "siteAdmin") setTab("dashboard"); } }}
+      />}
       <button className="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18}/>Logout</button>
     </header>
     {!isSuperAdmin && (profile.role === "owner" || loginMode === "owner")
       ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />
+      : isSuperAdmin && tab === "siteAdmin" ? <><nav className="nav"><NavButton active={false} onClick={() => setTab("dashboard")} icon={Home} label="Stable Dashboard" /><NavButton active={true} onClick={() => setTab("siteAdmin")} icon={ShieldCheck} label="Site Administration" /></nav><SiteAdministration setToast={setToast} /></>
       : activeStableId ? <StableApp key={activeStableId} profile={activeProfile} isSuperAdmin={isSuperAdmin} tab={tab} setTab={setTab} setToast={setToast} stable={activeStable} setStable={setStable} setProfile={setProfile} />
       : <main className="page"><section className="card">No stables are available to manage.</section></main>}
   </div>;
@@ -285,6 +289,85 @@ function StableApplicationSignup({ onBack }) {
   </section></main>;
 }
 
+// Standalone onboarding styles avoid changing the rest of the application.
+const onboard = {
+  shell: {position:"relative",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"44px 16px",isolation:"isolate",fontFamily:"inherit"},
+  overlay: {position:"absolute",inset:0,background:"linear-gradient(115deg,rgba(8,15,37,.94),rgba(8,15,37,.66))",zIndex:0},
+  card: {position:"relative",zIndex:1,width:"100%",maxWidth:750,background:"#fff",borderRadius:22,boxShadow:"0 28px 90px rgba(0,0,0,.30)",overflow:"hidden",color:"#111b32"},
+  header: {background:"#0b1026",color:"#fff",padding:"26px 34px"},
+  content: {padding:"30px 34px 34px"},
+  eyebrow: {fontSize:11,letterSpacing:"2px",fontWeight:800,textTransform:"uppercase",color:"#7e8aa4",margin:"0 0 12px"},
+  title: {fontSize:"clamp(27px, 5vw, 39px)",letterSpacing:"-1.2px",lineHeight:1.12,margin:"0 0 14px",fontWeight:800},
+  subtitle: {color:"#53617a",lineHeight:1.7,margin:"0 0 24px"},
+  panel: {background:"#f5f7fb",border:"1px solid #e4e9f2",borderRadius:15,padding:"20px",marginBottom:20},
+  label: {display:"block",fontSize:13,fontWeight:700,color:"#34425c",marginBottom:7},
+  input: {display:"block",boxSizing:"border-box",width:"100%",minHeight:46,border:"1px solid #cbd5e1",borderRadius:9,padding:"11px 13px",font:"inherit",color:"#15213a",background:"#fff"},
+  button: {width:"100%",minHeight:49,background:"#0b1026",color:"#fff",border:0,borderRadius:10,fontWeight:750,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:9},
+  secondary: {background:"#fff",color:"#18223b",border:"1px solid #cbd5e1",borderRadius:9,padding:"11px 16px",cursor:"pointer",fontWeight:700},
+  error: {background:"#fff1f2",color:"#9f1239",border:"1px solid #fecdd3",padding:13,borderRadius:9,margin:"14px 0"}
+};
+
+function OnboardingFrame({children}) {
+  return <main style={onboard.shell}>
+    <PhotoReel />
+    <div style={onboard.overlay} />
+    <section style={onboard.card}>
+      <header style={onboard.header}>
+        <div style={{display:"flex",alignItems:"center",gap:11,fontWeight:800,letterSpacing:"1.6px",fontSize:12}}>
+          <ShieldCheck size={23} /> THE TROTTING STABLE APP
+        </div>
+      </header>
+      <div style={onboard.content}>{children}</div>
+    </section>
+  </main>;
+}
+
+function OnboardingLogout() {
+  return <div style={{textAlign:"center",marginTop:20}}><button type="button" className="text" onClick={() => supabase.auth.signOut()} style={{color:"#64748b"}}>Log out of your account</button></div>;
+}
+
+function MembershipEnded({session,refreshProfile}) {
+  const [code,setCode] = useState("");
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState("");
+  const [success,setSuccess] = useState("");
+  async function join(event) {
+    event.preventDefault();
+    if (!code.trim()) {setError("Enter the invitation code provided by your stable administrator.");return;}
+    setBusy(true);setError("");setSuccess("");
+    // The existing redemption function reads the code from authenticated user metadata.
+    const {error:metadataError} = await supabase.auth.updateUser({data:{stable_invite_code:code.trim()}});
+    if (metadataError) {setError(metadataError.message);setBusy(false);return;}
+    const {error:redeemError} = await supabase.rpc("redeem_stable_invite");
+    if (redeemError) {setError(redeemError.message);setBusy(false);return;}
+    await supabase.auth.updateUser({data:{stable_invite_code:null}});
+    setSuccess("Invitation accepted. Loading your new stable...");
+    setBusy(false);
+    refreshProfile();
+  }
+  return <OnboardingFrame>
+    <div style={{textAlign:"center",margin:"10px 0 28px"}}>
+      <div style={{width:68,height:68,borderRadius:20,background:"#eef2ff",color:"#172554",display:"grid",placeItems:"center",margin:"0 auto 18px"}}><Users size={32}/></div>
+      <p style={onboard.eyebrow}>ACCOUNT STATUS</p>
+      <h1 style={onboard.title}>You're not currently part of a stable.</h1>
+      <p style={{...onboard.subtitle,maxWidth:540,margin:"0 auto"}}>Your previous stable membership has ended. Your account is still active, but access to your former stable's information has been removed.</p>
+    </div>
+    <div style={onboard.panel}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><KeyRound size={20}/><strong>Have a new invitation?</strong></div>
+      <p style={{fontSize:14,color:"#53617a",lineHeight:1.6,margin:"0 0 17px"}}>Ask your new stable's administrator or trainer for an invitation code. You can join using this same account.</p>
+      <form onSubmit={join}>
+        <label style={onboard.label} htmlFor="rejoin-code">Invitation code</label>
+        <input id="rejoin-code" style={{...onboard.input,marginBottom:12}} value={code} onChange={e=>setCode(e.target.value)} placeholder="Enter your invitation code" autoComplete="off" required />
+        <button style={onboard.button} type="submit" disabled={busy}>{busy?"Joining stable...":"Join a stable"}<ArrowRight size={17}/></button>
+      </form>
+      {error && <p role="alert" style={onboard.error}>{error}</p>}
+      {success && <p role="status" style={{color:"#166534"}}>{success}</p>}
+    </div>
+    <p style={{fontSize:13,color:"#64748b",textAlign:"center",lineHeight:1.6}}>Believe your access was removed in error? Contact your previous stable administrator.</p>
+    <OnboardingLogout />
+  </OnboardingFrame>;
+}
+
 function StableApplicationOnboarding({ session, refreshProfile }) {
   const [application, setApplication] = useState(null);
   const [checking, setChecking] = useState(true);
@@ -315,29 +398,39 @@ function StableApplicationOnboarding({ session, refreshProfile }) {
     if (insertError) setError(insertError.message);
     else await load();
   }
-  return <main className="onboarding-screen"><PhotoReel /><section className="onboarding-card">
-    <p className="eyebrow">The Trotting Stable App</p><h1>Stable application</h1>
-    {checking ? <p>Checking your application...</p> : application?.status === "pending" ? <>
-      <h2>Awaiting approval</h2><p>Your application for <strong>{application.stable_name}</strong> has been submitted.</p>
-      <p>You'll be able to access your stable after the website administrator approves it.</p>
-      <button className="ghost" onClick={load}>Refresh status</button>
+  return <OnboardingFrame>
+    {checking ? <div role="status" style={onboard.panel}>Checking your application...</div> : application?.status === "pending" ? <>
+      <div style={{textAlign:"center",padding:"12px 0 20px"}}>
+        <div style={{width:68,height:68,borderRadius:20,background:"#eef2ff",color:"#1e3a8a",display:"grid",placeItems:"center",margin:"0 auto 18px"}}><Clock3 size={33}/></div>
+        <p style={onboard.eyebrow}>APPLICATION SUBMITTED</p>
+        <h1 style={onboard.title}>Your application is under review.</h1>
+        <p style={onboard.subtitle}>We've received your application for <strong>{application.stable_name}</strong>. Your stable will become available once a website administrator approves it.</p>
+      </div>
+      <div style={onboard.panel}><strong>What happens next?</strong><p style={{fontSize:14,color:"#53617a",lineHeight:1.7,marginBottom:0}}>Your application is waiting for review. Once approved, you'll be able to enter your stable, add horses and invite your team. Return here to check its status.</p></div>
+      <button type="button" style={onboard.button} onClick={load}>Check application status <ArrowRight size={17}/></button>
     </> : application?.status === "approved" ? <>
-      <p>Your application has been approved. Refresh your account to enter your stable.</p>
-      <button className="primary" onClick={refreshProfile}>Enter Stable</button>
+      <div style={{textAlign:"center",padding:"12px 0 20px"}}><CheckCircle2 size={54} color="#15803d"/><p style={onboard.eyebrow}>APPLICATION APPROVED</p><h1 style={onboard.title}>Welcome to your stable.</h1><p style={onboard.subtitle}>Your application has been approved. You're ready to get started.</p></div>
+      <button type="button" style={onboard.button} onClick={refreshProfile}>Enter your stable <ArrowRight size={17}/></button>
     </> : <>
-      {application?.status === "rejected" && <p>Your previous application was not approved.{application.review_notes ? ` Reason: ${application.review_notes}` : ""} You can submit another application.</p>}
-      <p>Submit your stable details for approval. No stable is created until your application is accepted.</p>
-      <form className="form-grid" onSubmit={submit}>
-        <label className="field"><span>Stable Name</span><input required minLength={2} maxLength={120} value={stableName} onChange={e => setStableName(e.target.value)} /></label>
-        <label className="field"><span>Your Name</span><input required minLength={2} maxLength={120} value={contactName} onChange={e => setContactName(e.target.value)} /></label>
-        <label className="field"><span>Email</span><input disabled value={session.user.email || ""} /></label>
-        <label className="field"><span>About your stable (optional)</span><textarea value={message} onChange={e => setMessage(e.target.value)} /></label>
-        <button className="primary full" disabled={busy}>{busy ? "Submitting..." : "Submit Application"}</button>
-      </form>
+      <p style={onboard.eyebrow}>NEW STABLE REGISTRATION</p>
+      <h1 style={onboard.title}>Let's get your stable set up.</h1>
+      <p style={onboard.subtitle}>Tell us about your training operation. Once approved, you'll have a dedicated workspace to manage horses, your team and owners.</p>
+      {application?.status === "rejected" && <div style={onboard.error}>Your previous application was not approved.{application.review_notes ? ` Reason: ${application.review_notes}` : ""} You can submit another application.</div>}
+      <div style={onboard.panel}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}><Building2 size={20}/><strong>Stable details</strong></div>
+        <form onSubmit={submit} style={{display:"grid",gap:17}}>
+          <label><span style={onboard.label}>Stable name</span><input style={onboard.input} required minLength={2} maxLength={120} placeholder="e.g. Rando Racing" value={stableName} onChange={e=>setStableName(e.target.value)}/></label>
+          <label><span style={onboard.label}>Trainer's full name</span><input style={onboard.input} required minLength={2} maxLength={120} placeholder="Your full name" value={contactName} onChange={e=>setContactName(e.target.value)}/></label>
+          <label><span style={onboard.label}>Email address</span><input style={{...onboard.input,background:"#edf1f7"}} disabled value={session.user.email || ""}/></label>
+          <label><span style={onboard.label}>Tell us about your stable <span style={{fontWeight:400}}>(optional)</span></span><textarea style={{...onboard.input,minHeight:95,resize:"vertical"}} placeholder="Where you're based, your training background and your operation..." value={message} onChange={e=>setMessage(e.target.value)}/></label>
+          <button type="submit" style={onboard.button} disabled={busy}>{busy?"Submitting application...":"Submit stable application"}<ArrowRight size={17}/></button>
+        </form>
+      </div>
+      <div style={{display:"flex",gap:12,alignItems:"flex-start",color:"#53617a",fontSize:13,lineHeight:1.6}}><Info size={19} style={{flexShrink:0,marginTop:2}}/><span><strong style={{color:"#1e293b"}}>What happens next?</strong> Your application will be reviewed before a stable is created. After approval, you can add horses, invite staff and connect with owners.</span></div>
     </>}
-    {error && <p role="alert" className="login-message">{error}</p>}
-    <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
-  </section></main>;
+    {error && <p role="alert" style={onboard.error}>{error}</p>}
+    <OnboardingLogout />
+  </OnboardingFrame>;
 }
 
 function PasswordResetForm({ onDone, setToast }) {
@@ -696,6 +789,55 @@ function InviteSignup({ onBack, setToast }) {
   </main>;
 }
 
+// Super Admin navigation lives outside individual stable settings.
+function SiteAdministration({ setToast }) {
+  const [section, setSection] = useState("applications");
+  return <main className="page site-admin-page">
+    <section className="module-header"><div className="module-icon"><ShieldCheck size={24}/></div>
+      <div><p className="eyebrow">Platform management</p><h2>Site Administration</h2>
+      <p className="muted">Manage the website and stable applications independently of any selected stable.</p></div>
+    </section>
+    <div className="site-admin-tabs" role="tablist" aria-label="Site administration sections">
+      <button type="button" role="tab" aria-selected={section === "applications"} className={section === "applications" ? "active" : ""} onClick={() => setSection("applications")}><ClipboardList size={18}/> Stable Applications</button>
+      <button type="button" role="tab" aria-selected={section === "website"} className={section === "website" ? "active" : ""} onClick={() => setSection("website")}><Edit3 size={18}/> Website Editor</button>
+    </div>
+    <div className="site-admin-content" role="tabpanel">
+      {section === "applications" ? <StableApplicationsAdmin setToast={setToast}/> : <WebsiteEditor setToast={setToast}/>}
+    </div>
+  </main>;
+}
+
+function StableSwitcher({ stables, selectedId, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const root = useRef(null);
+  const search = useRef(null);
+  const selected = stables.find(st => st.id === selectedId);
+  const matches = stables.filter(st => (st.name || "").toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = event => { if (root.current && !root.current.contains(event.target)) setOpen(false); };
+    const escape = event => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    search.current?.focus();
+    return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  return <div className="stable-switcher" ref={root}>
+    <span className="stable-switcher-label">MANAGING STABLE</span>
+    <button type="button" className="stable-switcher-trigger" aria-expanded={open} aria-haspopup="listbox" onClick={() => { setQuery(""); setOpen(v => !v); }}>
+      <span className="stable-switcher-selected"><span className="stable-switcher-avatar"><Home size={17}/></span><span>{selected?.name || "Select a stable"}</span></span>
+      <ChevronRight size={18} className={open ? "stable-switcher-chevron open" : "stable-switcher-chevron"}/>
+    </button>
+    {open && <div className="stable-switcher-menu">
+      <div className="stable-switcher-search"><Search size={17}/><input ref={search} aria-label="Search stables" placeholder="Search stables..." value={query} onChange={e => setQuery(e.target.value)}/></div>
+      <div className="stable-switcher-options" role="listbox" aria-label="Select a stable">
+        {matches.length ? matches.map(st => <button type="button" role="option" aria-selected={st.id === selectedId} className={st.id === selectedId ? "selected" : ""} key={st.id} onClick={() => { onSelect(st.id); setOpen(false); setQuery(""); }}><span>{st.name}</span>{st.id === selectedId && <BadgeCheck size={17}/>}</button>) : <p className="muted" style={{padding:14}}>No matching stables</p>}
+      </div>
+    </div>}
+  </div>;
+}
+
 function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfile, isSuperAdmin = false }) {
   const hidden = profile.role === "staff" ? ["finance", "staff"] : [];
   return <>
@@ -706,6 +848,7 @@ function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfi
       <NavButton active={tab === "analytics"} onClick={() => setTab("analytics")} icon={BarChart3} label="Analytics" />
       {financeRoles.includes(profile.role) && <NavButton active={tab === "invoices"} onClick={() => setTab("invoices")} icon={FileText} label="Invoices" />}
       <NavButton active={tab === "settings"} onClick={() => setTab("settings")} icon={Settings} label="Settings" />
+      {isSuperAdmin && <NavButton active={tab === "siteAdmin"} onClick={() => setTab("siteAdmin")} icon={ShieldCheck} label="Site Administration" />}
     </nav>
     {tab === "dashboard" && <Dashboard stableId={profile.stable_id} setTab={setTab} role={profile.role} />}
     {tab === "updates" && <UpdatesPanel stableId={profile.stable_id} setToast={setToast} />}
@@ -741,28 +884,6 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
   const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
   const [saving, setSaving] = useState(false);
-  const [isWebsiteAdmin, setIsWebsiteAdmin] = useState(isSuperAdmin);
-
-  useEffect(() => {
-    let active = true;
-    async function checkWebsiteAdmin() {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (!active || authError || !authData?.user) return;
-      const { data, error } = await supabase
-        .from("website_admins")
-        .select("user_id")
-        .eq("user_id", authData.user.id)
-        .maybeSingle();
-      if (active) {
-        if (error) console.error("Website administrator check failed:", error);
-        setIsWebsiteAdmin(!error && !!data);
-      }
-    }
-    if (isSuperAdmin) setIsWebsiteAdmin(true);
-    else if (!ownerMode) checkWebsiteAdmin();
-    return () => { active = false; };
-  }, [ownerMode, isSuperAdmin]);
-
   async function saveAccount(event) {
     event.preventDefault();
     setSaving(true);
@@ -879,8 +1000,6 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       {!ownerMode && (isSuperAdmin || (profile.role === "admin" && profile.is_trainer)) &&
         <ManageTeam profile={profile} setToast={setToast} isSuperAdmin={isSuperAdmin} />}
 
-      {!ownerMode && isWebsiteAdmin && <StableApplicationsAdmin setToast={setToast} />}
-      {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
 
       <article className="settings-card">
         <h3>Security</h3>
