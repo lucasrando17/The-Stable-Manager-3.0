@@ -246,7 +246,19 @@ function App() {
     : profile;
 
   return <div className="app" style={brand ? {"--stable-primary": brand.primary_color, "--stable-accent": brand.accent_color, "--stable-background": brand.background_color} : {}}>
-    {brand && <style>{`.app .nav button.active, .app button.primary { background: var(--stable-primary) !important; border-color: var(--stable-primary) !important; color: white !important; } .app .module-icon { color: var(--stable-primary) !important; } .app .page { background: var(--stable-background) !important; } .app .nav button.active svg { color: white !important; } .app .topbar { border-bottom: 3px solid var(--stable-accent) !important; }`}</style>}
+    {brand && <style>{`
+      /* Stable identity is an accent, not a full-screen paint bucket. */
+      .app .page { background: #f5f7fb !important; }
+      .app .topbar { border-bottom: 1px solid #e1e7f0 !important; position: relative; }
+      .app .topbar::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 100%; height: 3px; background: var(--stable-accent); opacity: .85; pointer-events: none; }
+      .app .nav button.active { background: #12213c !important; border-color: #12213c !important; color: #fff !important; }
+      .app .nav button.active svg { color: #fff !important; }
+      .app button.primary { background: #12213c !important; border-color: #12213c !important; color: #fff !important; }
+      .app button.primary:hover { background: #223b61 !important; }
+      .app .module-icon { color: #12213c !important; }
+      .app .topbar h1 { color: #101b30; }
+      .app .topbar img[alt="Stable logo"] { background: white; padding: 5px; border: 1px solid #e3e8f0; box-shadow: 0 2px 8px rgba(12,25,45,.06); }
+    `}</style>}
     {isSuperAdmin && <style>{ADMIN_UI_CSS}</style>}
     {toast && <div className="toast">{toast}</div>}
     <header className="topbar">
@@ -1229,7 +1241,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
           <label className="field"><span>Stable Logo (PNG, JPG or WebP)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo}/></label>
           {branding.logo_data && <div style={{display:"flex",alignItems:"center",gap:14}}><img src={branding.logo_data} alt="Logo preview" style={{width:86,height:86,objectFit:"contain"}}/><button type="button" className="ghost" onClick={()=>setBranding(old=>({...old,logo_data:null}))}>Remove logo</button></div>}
           {[["primary_color","Primary colour"],["accent_color","Accent colour"],["background_color","Background colour"]].map(([key,label])=><label className="field" key={key}><span>{label}</span><div style={{display:"flex",alignItems:"center",gap:12}}><input type="color" value={branding[key]} onChange={e=>setBranding(old=>({...old,[key]:e.target.value}))} style={{width:64,height:42,padding:2}}/><strong>{branding[key]}</strong></div></label>)}
-          <div style={{borderRadius:12,padding:18,background:branding.background_color,border:`2px solid ${branding.accent_color}`}}><div style={{display:"flex",alignItems:"center",gap:10}}>{branding.logo_data && <img src={branding.logo_data} alt="" style={{width:40,height:40,objectFit:"contain"}}/>}<strong>Live colour preview</strong></div><div style={{background:branding.primary_color,color:"white",borderRadius:9,padding:"10px 16px",marginTop:12}}>Primary action</div></div>
+          <div style={{borderRadius:14,padding:18,background:"#f5f7fb",border:"1px solid #dfe5ef",overflow:"hidden"}}><div style={{display:"flex",alignItems:"center",gap:10,background:"white",padding:12,borderRadius:10,borderBottom:`3px solid ${branding.accent_color}`}}>{branding.logo_data && <img src={branding.logo_data} alt="" style={{width:40,height:40,objectFit:"contain"}}/>}<strong>Live workspace preview</strong></div><div style={{display:"flex",gap:10,marginTop:12}}><div style={{background:"white",borderRadius:9,padding:13,flex:1,border:"1px solid #e5eaf1"}}>Horses<br/><strong>12</strong></div><div style={{background:"white",borderRadius:9,padding:13,flex:1,border:"1px solid #e5eaf1"}}>Work<br/><strong>8</strong></div></div><p style={{fontSize:12,color:"#66758e",margin:"12px 0 0"}}>Colours are used as subtle brand accents. The dashboard stays neutral for readability.</p></div>
           <button className="primary full" disabled={brandSaving}>{brandSaving ? "Saving..." : "Save Stable Branding"}</button>
         </form>
       </article>}
