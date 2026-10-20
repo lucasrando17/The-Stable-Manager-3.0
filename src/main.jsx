@@ -500,14 +500,63 @@ function Landing({ setEntry, previewContent = null }) {
 }
 
 function PhotoReel({ backgroundUrl = "" }) {
-  const [index, setIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [nextIndex, setNextIndex] = useState(null);
+  const [wiping, setWiping] = useState(false);
+
+  // Preload every slide so the next photograph is ready before the wipe begins.
   useEffect(() => {
-    if (backgroundUrl) return;
-    const timer = setInterval(() => setIndex(v => (v + 1) % photos.length), 4500);
-    return () => clearInterval(timer);
+    photos.forEach(src => {
+      const image = new Image();
+      image.src = src;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (backgroundUrl || photos.length < 2) return;
+    let revealTimer;
+    let finishTimer;
+    const interval = setInterval(() => {
+      setCurrentIndex(current => {
+        const upcoming = (current + 1) % photos.length;
+        setNextIndex(upcoming);
+        return current;
+      });
+      // Allow the incoming layer to mount before animating its clipping edge.
+      revealTimer = setTimeout(() => setWiping(true), 50);
+      finishTimer = setTimeout(() => {
+        setCurrentIndex(current => (current + 1) % photos.length);
+        setNextIndex(null);
+        setWiping(false);
+      }, 1250);
+    }, 5500);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(revealTimer);
+      clearTimeout(finishTimer);
+    };
   }, [backgroundUrl]);
-  const photo = backgroundUrl || photos[index];
-  return <div className="photo-reel" style={{ backgroundImage: `url("${String(photo).replace(/["\\\\]/g, "")}")` }} />;
+
+  const layerStyle = {
+    position: "absolute",
+    inset: 0,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat"
+  };
+  const safeUrl = url => `url("${String(url).replace(/["\\]/g, "")}")`;
+
+  return <div className="photo-reel" style={{ overflow: "hidden", isolation: "isolate", position: "absolute" }}>
+    <div style={{ ...layerStyle, backgroundImage: safeUrl(backgroundUrl || photos[currentIndex]) }} />
+    {!backgroundUrl && nextIndex !== null &&
+      <div style={{
+        ...layerStyle,
+        backgroundImage: safeUrl(photos[nextIndex]),
+        clipPath: wiping ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
+        transition: wiping ? "clip-path 1.15s cubic-bezier(0.65, 0, 0.35, 1)" : "none",
+        willChange: "clip-path"
+      }} />}
+  </div>;
 }
 
 function Login({ mode, onBack, setLoginMode }) {
