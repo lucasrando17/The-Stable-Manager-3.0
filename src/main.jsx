@@ -1,4 +1,3 @@
-```
 // COMPLETE FINAL REBUILD V13
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -1847,4 +1846,3 @@ function formatValue(value) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
-```
