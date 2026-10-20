@@ -21,9 +21,46 @@ const WARMUP_SECTORS = ["Jog/Canter", "Gallop", "Trot", "Hopple"];
 const stableRoles = ["admin", "trainer", "staff"];
 const financeRoles = ["admin", "trainer"];
 
+// Custom stable icons — match the existing Lucide outline style.
+function HorseIcon({ size = 24, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M5 21v-5l2-4 1-5 4-4 2 4 4 1 2 5-2 3-4-1-2-2-2 4v4" />
+      <path d="M8 7 7 3l5 1M14 11h.01M5 17h5" />
+    </svg>
+  );
+}
+
+function HorseshoeIcon({ size = 24, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M5 5v8a7 7 0 0 0 14 0V5h-5v8a2 2 0 0 1-4 0V5Z" />
+      <path d="M5 8h5M14 8h5M5 12h5M14 12h5" />
+    </svg>
+  );
+}
+
+function BridleIcon({ size = 24, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M7 3c-2 3-3 7-3 11v5M17 3c2 3 3 7 3 11v5" />
+      <path d="M7 3c3 2 7 2 10 0M5 9c4 3 10 3 14 0" />
+      <path d="M4 15h16M8 15v4c0 2 8 2 8 0v-4" />
+      <circle cx="5" cy="15" r="1.5" />
+      <circle cx="19" cy="15" r="1.5" />
+    </svg>
+  );
+}
+
 const moduleDefs = {
   horses: {
-    table: "horses", title: "Horses", icon: BadgeCheck, profile: "horse",
+    table: "horses", title: "Horses", icon: HorseIcon, profile: "horse",
     fields: [["name","Registered Name","text"],["stable_name","Stable Name","text"],["profile_photo_url","Profile Photo URL","text"],["sire","Sire","text"],["mare","Mare","text"],["age","Age","number"],["sex","Sex","select",["Gelding","Mare","Horse","Colt","Filly"]],["trainer","Trainer","text"],["status","Status","select",["Racing","Building","Trialling","Spelling","Rehab","Sold","Retired"]],["current_status","Current Status","text"],["next_target","Next Target","text"],["notes","Notes","textarea"]],
     display: ["stable_name","sire","mare","age","sex","trainer","status","current_status","next_target"]
   },
@@ -48,7 +85,7 @@ const moduleDefs = {
     display: ["treatment_date","horse_name","treatment_type","veterinarian","bill_amount","bill_to_owners","follow_up_date"]
   },
   farrier: {
-    table: "farrier_records", title: "Farrier", icon: Package, calendarField: "farrier_date",
+    table: "farrier_records", title: "Farrier", icon: HorseshoeIcon, calendarField: "farrier_date",
     fields: [["farrier_date","Date","date"],["horse_name","Horse","horseName"],["farrier_name","Farrier","text"],["service_type","Service","select",["Full Set","Fronts","Hinds","Trim","Reset","Bar Shoes","Pads","Glue Ons","Other"]],["shoeing_notes","Shoeing Notes","textarea"],["bill_amount","Bill Amount","number"],["bill_to_owners","Add to owner invoices?","select",["No","Yes"]],["next_due_date","Next Due Date","date"],["notes","Notes","textarea"]],
     display: ["farrier_date","horse_name","farrier_name","service_type","bill_amount","bill_to_owners","next_due_date"]
   },
@@ -58,7 +95,7 @@ const moduleDefs = {
     display: ["horse_name","morning_feed","lunch_feed","night_feed","supplements"]
   },
   gear: {
-    table: "gear_items", title: "Gear", icon: Package,
+    table: "gear_items", title: "Gear", icon: BridleIcon,
     fields: [["item_name","Item","text"],["horse_name","Horse","horseName"],["category","Category","select",["Hopples","Bridle","Bit","Boots","Harness","Sulky","Driving Gear","Rug","Other"]],["size","Size","text"],["colour","Colour","text"],["condition","Condition","select",["Excellent","Good","Fair","Needs Repair","Retired"]],["location","Location","text"],["assigned_to","Assigned To","text"],["notes","Notes","textarea"]],
     display: ["horse_name","category","size","colour","condition","location","assigned_to"]
   },
@@ -612,7 +649,7 @@ function OwnerApp({ profile, tab, setTab, setToast, stable, setStable, setProfil
   return <>
     <nav className="nav">
       <NavButton active={tab === "ownerHome"} onClick={() => setTab("ownerHome")} icon={Home} label="Home" />
-      <NavButton active={tab === "ownerHorses"} onClick={() => setTab("ownerHorses")} icon={BadgeCheck} label="Horses" />
+      <NavButton active={tab === "ownerHorses"} onClick={() => setTab("ownerHorses")} icon={HorseIcon} label="Horses" />
       <NavButton active={tab === "ownerUpdates"} onClick={() => setTab("ownerUpdates")} icon={Megaphone} label="Updates" />
       <NavButton active={tab === "ownerCalendar"} onClick={() => setTab("ownerCalendar")} icon={Calendar} label="Calendar" />
       <NavButton active={tab === "ownerInvoices"} onClick={() => setTab("ownerInvoices")} icon={CreditCard} label="Bills" />
@@ -970,7 +1007,7 @@ function Dashboard({ stableId, setTab, role }) {
       <div><p className="eyebrow dark-text">Stable command centre</p><h2>Everything important, in one place.</h2></div>
     </section>
     <section className="stats">
-      <Stat icon={BadgeCheck} label="Horses" value={counts.horses || 0} />
+      <Stat icon={HorseIcon} label="Horses" value={counts.horses || 0} />
       <Stat icon={ClipboardList} label="Work" value={counts.work || 0} />
       <Stat icon={Users} label="Owners" value={counts.owners || 0} />
       <Stat icon={Trophy} label="Races" value={counts.races || 0} />
