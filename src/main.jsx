@@ -118,6 +118,18 @@ const moduleDefs = {
 
 const ADMIN_UI_CSS = '\n/* Super administrator workspace and searchable stable selector */\n.stable-switcher{position:relative;min-width:220px;max-width:min(340px,90vw);z-index:100}\n.stable-switcher-label{display:block;font-size:10px;font-weight:800;letter-spacing:.12em;opacity:.7;margin-bottom:5px}\n.stable-switcher-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(150,160,185,.4);border-radius:12px;padding:8px 11px;background:rgba(255,255,255,.1);color:inherit;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s}\n.stable-switcher-trigger:hover,.stable-switcher-trigger:focus-visible{background:rgba(255,255,255,.18);border-color:rgba(150,160,185,.85);outline:none;box-shadow:0 0 0 3px rgba(100,130,200,.12)}\n.stable-switcher-selected{display:flex;align-items:center;gap:10px;min-width:0;text-align:left;font-weight:650}\n.stable-switcher-selected>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.stable-switcher-avatar{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border-radius:9px;background:rgba(135,155,205,.2)}\n.stable-switcher-chevron{transform:rotate(90deg);transition:transform .2s;flex-shrink:0}.stable-switcher-chevron.open{transform:rotate(-90deg)}\n.stable-switcher-menu{position:absolute;right:0;top:calc(100% + 8px);width:max(100%,285px);max-width:calc(100vw - 32px);border:1px solid #dbe3ef;border-radius:15px;background:#fff;color:#0b1026;box-shadow:0 18px 50px rgba(6,16,40,.2);overflow:hidden;animation:stable-menu-in .16s ease-out}\n@keyframes stable-menu-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}\n.stable-switcher-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid #e7eaf0;color:#64748b}\n.stable-switcher-search input{width:100%;border:0;outline:0;background:transparent;color:#0b1026;font:inherit;box-shadow:none;padding:4px}\n.stable-switcher-options{max-height:300px;overflow:auto;padding:6px}\n.stable-switcher-options button{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;gap:12px;border:0;border-radius:9px;padding:11px 12px;background:transparent;color:#18223b;cursor:pointer;font:inherit;transition:background .15s}\n.stable-switcher-options button:hover{background:#f1f5fb}.stable-switcher-options button.selected{background:#eaf0ff;color:#173c83;font-weight:750}\n.site-admin-page{max-width:1300px;margin-inline:auto}.site-admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 24px;padding:5px;border:1px solid #dbe3ef;border-radius:14px;background:#f3f6fb;width:fit-content}\n.site-admin-tabs button{display:flex;align-items:center;gap:9px;padding:11px 17px;border:0;border-radius:10px;background:transparent;color:#4a556d;font:inherit;font-weight:650;cursor:pointer;transition:background .18s,box-shadow .18s,color .18s}\n.site-admin-tabs button:hover{background:#e8eef8}.site-admin-tabs button.active{background:white;color:#0b1026;box-shadow:0 2px 8px rgba(15,23,42,.1)}\n.site-admin-content{animation:stable-menu-in .2s ease-out}.site-admin-content>.settings-card{margin-bottom:20px}\n@media(max-width:640px){.stable-switcher{width:100%;max-width:100%}.stable-switcher-menu{left:0;right:auto;width:100%}.site-admin-tabs{width:100%}.site-admin-tabs button{flex:1;justify-content:center;font-size:13px}}\n';
 
+const LOGIN_SPLASH_CSS = `
+.stable-login-splash{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#f8fafc;animation:stable-splash-exit 2.3s ease-in-out both;pointer-events:none}
+.stable-login-splash-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:22px;padding:32px;max-width:min(620px,90vw);animation:stable-splash-enter 1.25s cubic-bezier(.2,.7,.2,1) both}
+.stable-login-splash-logo{display:block;width:auto;height:auto;max-width:min(340px,72vw);max-height:210px;object-fit:contain;filter:drop-shadow(0 8px 20px rgba(10,20,45,.09))}
+.stable-login-splash-name{font-size:clamp(34px,6vw,68px);line-height:1.06;font-weight:800;letter-spacing:-.045em;color:#101a32;margin:0;overflow-wrap:anywhere}
+.stable-login-splash-rule{height:2px;width:52px;border-radius:8px;background:#a7b4c9}
+.stable-login-splash-caption{font-size:11px;font-weight:750;letter-spacing:.22em;color:#73819a;margin:0}
+@keyframes stable-splash-enter{from{opacity:0;transform:translateY(15px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes stable-splash-exit{0%,65%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
+@media(prefers-reduced-motion:reduce){.stable-login-splash,.stable-login-splash-inner{animation:none}.stable-login-splash{opacity:1}}
+`;
+
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -133,6 +145,8 @@ function App() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [allStables, setAllStables] = useState([]);
   const [selectedStableId, setSelectedStableId] = useState("");
+  const [showLoginSplash, setShowLoginSplash] = useState(false);
+  const [brandingLoadedFor, setBrandingLoadedFor] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -142,6 +156,8 @@ function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession) setEntry("app");
+      if (_event === "SIGNED_IN" && nextSession?.user?.id) setShowLoginSplash(true);
+      if (_event === "SIGNED_OUT") setShowLoginSplash(false);
       if (_event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
     return () => data.subscription.unsubscribe();
@@ -208,12 +224,19 @@ function App() {
   const activeStable = isSuperAdmin ? allStables.find(item => item.id === activeStableId) || null : stable;
   const [brand, setBrand] = useState(null);
   useEffect(() => {
-    if (!activeStableId) { setBrand(null); return; }
+    if (!activeStableId) { setBrand(null); setBrandingLoadedFor(""); return; }
+    setBrandingLoadedFor("");
     let alive = true;
     supabase.from("stable_branding").select("*").eq("stable_id", activeStableId).maybeSingle()
-      .then(({ data }) => { if (alive) setBrand(data || null); });
+      .then(({ data }) => { if (alive) { setBrand(data || null); setBrandingLoadedFor(activeStableId); } });
     return () => { alive = false; };
   }, [activeStableId, tab]);
+
+  useEffect(() => {
+    if (!showLoginSplash || !profile || !activeStableId || brandingLoadedFor !== activeStableId) return;
+    const timer = setTimeout(() => setShowLoginSplash(false), 2300);
+    return () => clearTimeout(timer);
+  }, [showLoginSplash, profile, activeStableId, brandingLoadedFor]);
 
   if (loading) return <div className="center">Loading...</div>;
   if (session && passwordRecovery) return <PasswordResetForm onDone={() => setPasswordRecovery(false)} setToast={setToast} />;
@@ -246,6 +269,20 @@ function App() {
     : profile;
 
   return <div className="app">
+    <style>{LOGIN_SPLASH_CSS}</style>
+    {showLoginSplash && activeStableId && brandingLoadedFor === activeStableId && (
+      <div className="stable-login-splash" role="status" aria-label={`Welcome to ${activeStable?.name || "your stable"}`}>
+        <div className="stable-login-splash-inner" key={activeStableId}>
+          {brand?.logo_data ? (
+            <img className="stable-login-splash-logo" src={brand.logo_data} alt={activeStable?.name || "Stable logo"} />
+          ) : (
+            <h2 className="stable-login-splash-name">{activeStable?.name || "Your Stable"}</h2>
+          )}
+          <div className="stable-login-splash-rule" />
+          <p className="stable-login-splash-caption">THE TROTTING STABLE APP</p>
+        </div>
+      </div>
+    )}
     {isSuperAdmin && <style>{ADMIN_UI_CSS}</style>}
     {toast && <div className="toast">{toast}</div>}
     <header className="topbar">
