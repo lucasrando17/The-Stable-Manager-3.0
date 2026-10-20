@@ -359,52 +359,73 @@ const landingDefaults = {
   feature_media_description: "Included in the clean final rebuild."
 };
 
-function useSiteSettings() {
+function useSiteSettings(enabled = true) {
   const [content, setContent] = useState(landingDefaults);
   const [settingsError, setSettingsError] = useState("");
+  const [settingsLoading, setSettingsLoading] = useState(enabled);
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     async function loadSettings() {
+      setSettingsLoading(true);
       setSettingsError("");
-      const { data, error } = await supabase.from("site_settings").select("key,value");
-      if (!active) return;
-      if (error) {
+      try {
+        const { data, error } = await supabase.from("site_settings").select("key,value");
+        if (!active) return;
+        if (error) throw error;
+        if (!data?.length) {
+          throw new Error("Supabase returned zero published settings. The public SELECT policy may be hiding rows, the site_settings table may be empty, or this deployment may point to a different Supabase project.");
+        }
+        const settings = Object.fromEntries(data.map(({ key, value }) => [key, value]));
+        setContent({ ...landingDefaults, ...Object.fromEntries(
+          Object.entries(settings).filter(([, value]) => value !== null && value !== "")
+        ) });
+      } catch (error) {
+        if (!active) return;
         console.error("Public website settings could not load:", error);
-        setSettingsError(`Website settings could not load: ${error.message}`);
-        return;
+        setSettingsError(error?.message || String(error));
+      } finally {
+        if (active) setSettingsLoading(false);
       }
-      if (!data || data.length === 0) {
-        setSettingsError("No published website settings were returned. Check the public SELECT policy and the Vercel Supabase environment variables.");
-        return;
-      }
-      const settings = Object.fromEntries(data.map(({ key, value }) => [key, value]));
-      setContent({ ...landingDefaults, ...Object.fromEntries(
-        Object.entries(settings).filter(([, value]) => value !== null && value !== "")
-      ) });
     }
     loadSettings();
     return () => { active = false; };
-  }, [retryCount]);
+  }, [enabled, retryCount]);
 
-  return { content, settingsError, retrySettings: () => setRetryCount(count => count + 1) };
+  return { content, settingsError, settingsLoading, retrySettings: () => setRetryCount(count => count + 1) };
 }
 
 function Landing({ setEntry, previewContent = null }) {
-  const { content: liveContent, settingsError, retrySettings } = useSiteSettings();
+  const { content: liveContent, settingsError, settingsLoading, retrySettings } = useSiteSettings(!previewContent);
   const content = previewContent || liveContent;
   const features = ["operations", "owners", "calendar", "invoices", "analytics", "media"];
+
+  // Do not disguise a failed database read as a successfully published homepage.
+  if (!previewContent && (settingsLoading || settingsError)) {
+    const projectHost = (() => {
+      try { return new URL(import.meta.env.VITE_SUPABASE_URL).host; }
+      catch { return "Invalid or missing VITE_SUPABASE_URL"; }
+    })();
+    return <main className="landing" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <section role={settingsError ? "alert" : "status"} style={{ background: "#fff", color: "#0b1026", padding: 28, borderRadius: 16, maxWidth: 680, width: "100%", position: "relative", zIndex: 10 }}>
+        <h1 style={{ fontSize: 28, marginTop: 0 }}>{settingsLoading ? "Loading website…" : "Website settings could not load"}</h1>
+        {settingsError && <>
+          <p>The homepage has not loaded its published content. This is a connection, permissions or data issue — not a reason to republish your draft.</p>
+          <p style={{ overflowWrap: "anywhere" }}><strong>Supabase response:</strong> {settingsError}</p>
+          <p style={{ overflowWrap: "anywhere" }}><strong>Supabase project used by this deployment:</strong> {projectHost}</p>
+          <button className="primary" type="button" onClick={retrySettings}>Retry loading website</button>
+        </>}
+      </section>
+    </main>;
+  }
 
   return <main className="landing" style={{
     "--site-primary": content.brand_primary_color,
     "--site-accent": content.brand_accent_color
   }}>
     <PhotoReel backgroundUrl={content.hero_background_url} />
-    {!previewContent && settingsError && <div role="alert" style={{ position: "relative", zIndex: 20, background: "#fff4e5", color: "#542b00", padding: "12px 18px", fontSize: 14 }}>
-      <strong>Website configuration issue:</strong> {settingsError}{" "}
-      <button type="button" onClick={retrySettings} style={{ marginLeft: 12, cursor: "pointer" }}>Retry loading</button>
-    </div>}
     <header className="landing-nav">
       <strong>{content.site_logo_url
         ? <img src={content.site_logo_url} alt={content.site_name} style={{ maxHeight: 44, maxWidth: 220, objectFit: "contain" }} />
