@@ -840,6 +840,8 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
+      {!ownerMode && ["admin", "trainer"].includes(profile.role) && <TeamInvitations profile={profile} setToast={setToast} />}
+
       {!ownerMode && isWebsiteAdmin && <StableApplicationsAdmin setToast={setToast} />}
       {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
 
@@ -861,6 +863,108 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>
     </section>
   </main>;
+}
+
+function TeamInvitations({ profile, setToast }) {
+  const [role, setRole] = useState("staff");
+  const [email, setEmail] = useState("");
+  const [invites, setInvites] = useState([]);
+  const [newCode, setNewCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loadingInvites, setLoadingInvites] = useState(true);
+
+  async function loadInvites() {
+    setLoadingInvites(true);
+    const { data, error } = await supabase.from("invite_codes")
+      .select("id,code,role,email,used_by,used_at,expires_at,created_at")
+      .eq("stable_id", profile.stable_id)
+      .order("created_at", { ascending: false });
+    setLoadingInvites(false);
+    if (error) setToast(`Unable to load invitations: ${error.message}`);
+    else setInvites(data || []);
+  }
+
+  useEffect(() => { if (profile.stable_id) loadInvites(); }, [profile.stable_id]);
+
+  async function generateInvite(event) {
+    event.preventDefault();
+    if (!profile.stable_id || busy) return;
+    setBusy(true);
+    setNewCode("");
+    const { data, error } = await supabase.rpc("create_stable_invite", {
+      p_stable_id: profile.stable_id,
+      p_role: role,
+      p_email: email.trim() || null
+    });
+    setBusy(false);
+    if (error) { setToast(`Unable to create invitation: ${error.message}`); return; }
+    setNewCode(data || "");
+    setEmail("");
+    setToast("Invitation created. Copy the code to send it privately.");
+    await loadInvites();
+  }
+
+  async function copyCode(code) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setToast("Invitation code copied.");
+    } catch {
+      window.prompt("Copy this invitation code:", code);
+    }
+  }
+
+  async function revokeInvite(invite) {
+    if (!window.confirm(`Revoke invitation ${invite.code}?`)) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("revoke_stable_invite", { p_invite_id: invite.id });
+    setBusy(false);
+    if (error) setToast(`Unable to revoke invitation: ${error.message}`);
+    else { setToast("Invitation revoked."); await loadInvites(); }
+  }
+
+  return <article className="settings-card" style={{ gridColumn: "1 / -1" }}>
+    <h3>Team &amp; Invitations</h3>
+    <p>Create a code, copy it and send it privately. The recipient selects <strong>Join With Invite Code</strong> on the homepage.</p>
+    <form className="form-grid" onSubmit={generateInvite}>
+      <label className="field"><span>Access role</span>
+        <select value={role} onChange={event => setRole(event.target.value)}>
+          <option value="staff">Staff</option>
+          <option value="trainer">Trainer</option>
+          <option value="owner">Owner</option>
+        </select>
+      </label>
+      <label className="field"><span>Recipient email (optional)</span>
+        <input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" />
+      </label>
+      <button className="primary" type="submit" disabled={busy}>{busy ? "Working..." : "Generate Invitation Code"}</button>
+    </form>
+    {newCode && <div style={{ marginTop: 16, padding: 16, background: "#eef2ff", color: "#0b1026", borderRadius: 12 }}>
+      <strong>New invitation code</strong>
+      <p style={{ fontFamily: "monospace", overflowWrap: "anywhere" }}>{newCode}</p>
+      <button type="button" className="primary" onClick={() => copyCode(newCode)}>Copy Code</button>
+    </div>}
+    <h4 style={{ marginTop: 24 }}>Invitation history</h4>
+    <button type="button" className="ghost" onClick={loadInvites} disabled={loadingInvites}>Refresh</button>
+    {loadingInvites ? <p>Loading invitations...</p> : invites.length === 0 ? <p>No invitations yet.</p> :
+      invites.map(invite => {
+        const expired = !!invite.expires_at && new Date(invite.expires_at).getTime() < Date.now();
+        const used = !!invite.used_at || !!invite.used_by;
+        return <div key={invite.id} style={{ borderTop: "1px solid #dbe3ef", padding: "14px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <strong>{invite.role === "owner" ? "Owner" : invite.role === "trainer" ? "Trainer" : "Staff"}</strong>
+              <span> · {used ? "Used" : expired ? "Expired" : "Unused"}</span>
+              {invite.email && <div className="muted">{invite.email}</div>}
+              <div style={{ fontFamily: "monospace", overflowWrap: "anywhere", marginTop: 5 }}>{invite.code}</div>
+            </div>
+            {!used && !expired && <div className="button-row">
+              <button type="button" className="ghost" onClick={() => copyCode(invite.code)}>Copy</button>
+              <button type="button" className="ghost" disabled={busy} onClick={() => revokeInvite(invite)}>Revoke</button>
+            </div>}
+          </div>
+        </div>;
+      })}
+  </article>;
 }
 
 function StableApplicationsAdmin({ setToast }) {
