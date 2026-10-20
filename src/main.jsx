@@ -13,7 +13,15 @@ import "../styles.css";
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 const GST_RATE = 0.1;
-const photos = ["/login-photos/photo-1.jpg", "/login-photos/photo-2.jpg", "/login-photos/photo-3.jpg", "/login-photos/photo-4.jpg"];
+const photos = ["/login-photos/photo-1.jpg",
+  "/login-photos/photo-2.jpg",
+  "/login-photos/photo-3.jpg",
+  "/login-photos/photo-4.jpg",
+  "/login-photos/photo-5.jpg",
+  "/login-photos/photo-6.jpg",
+  "/login-photos/photo-7.jpg",
+  "/login-photos/photo-8.jpg"
+];
 
 const WORK_SECTORS = ["Jog - Cart", "Jog- Lead", "Jog- Jogger Machine", "Jog/Canter", "Gallop", "Trot", "Hopple", "Walking Machine", "Water Walk", "Race", "Trial", "Educational Trial", "Swim", "Beach Work", "Recovery"];
 const WARMUP_SECTORS = ["Jog/Canter", "Gallop", "Trot", "Hopple"];
