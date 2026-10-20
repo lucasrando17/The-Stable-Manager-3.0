@@ -1267,37 +1267,39 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
-      {!ownerMode && (profile.role === "admin" || isSuperAdmin) && <article className="settings-card" style={{padding:0,overflow:"hidden",borderRadius:20}}>
-        <div style={{padding:"25px 28px",background:"linear-gradient(115deg,#111e35,#253753)",color:"white"}}>
-          <div style={{fontSize:12,fontWeight:800,letterSpacing:".12em",opacity:.7,textTransform:"uppercase",marginBottom:8}}>Stable identity</div>
-          <h3 style={{color:"white",fontSize:25,margin:"0 0 8px"}}>Your stable logo</h3>
-          <p style={{color:"#d3deed",margin:0,maxWidth:550}}>Give your team a recognisable identity. Your logo appears beside your stable name across the app. The rest of the interface stays clean and consistent.</p>
+      {!ownerMode && (profile.role === "admin" || isSuperAdmin) && <article className="settings-card" style={{padding:0,overflow:"hidden",borderRadius:18,border:"1px solid #e1e7ef",boxShadow:"0 8px 26px rgba(16,28,51,.045)"}}>
+        <div style={{padding:"24px 28px 18px",borderBottom:"1px solid #e9eef5",background:"#fff"}}>
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:".11em",color:"#75849a",textTransform:"uppercase",marginBottom:7}}>Stable settings</div>
+          <h3 style={{fontSize:23,color:"#111d32",margin:"0 0 5px"}}>Stable logo</h3>
+          <p style={{fontSize:14,color:"#65748b",margin:0}}>Upload or update your stable's logo.</p>
         </div>
-        <form onSubmit={saveBranding} style={{padding:28,display:"grid",gap:20}}>
-          <div style={{display:"flex",gap:22,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{width:124,height:124,borderRadius:20,background:"#f5f7fb",border:"1px solid #dce3ed",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-              {branding.logo_data ? <img src={branding.logo_data} alt="Current stable logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:12,boxSizing:"border-box"}}/> : <div style={{textAlign:"center",color:"#7b8aa0",fontWeight:700,fontSize:13}}>No logo<br/>uploaded</div>}
+        <form onSubmit={saveBranding} style={{padding:"24px 28px 28px",display:"grid",gap:20}}>
+          <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{width:108,height:108,borderRadius:16,background:"#f7f9fc",border:"1px solid #dce4ef",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+              {branding.logo_data ? <img src={branding.logo_data} alt="Current stable logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:10,boxSizing:"border-box"}}/> : <div style={{textAlign:"center",color:"#8492a7",fontWeight:700,fontSize:12}}>No logo<br/>uploaded</div>}
             </div>
             <div style={{flex:"1 1 240px"}}>
-              <div style={{fontWeight:800,fontSize:17,marginBottom:5}}>Upload a logo</div>
-              <p style={{fontSize:13,color:"#64748b",margin:"0 0 14px"}}>PNG, JPG or WebP · Maximum 2 MB. A square image or transparent PNG works best.</p>
-              <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"11px 17px",background:"#101c33",color:"white",borderRadius:11,fontWeight:750,cursor:"pointer"}}>
-                Choose image
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo} style={{position:"absolute",width:1,height:1,opacity:0}}/>
-              </label>
-              {branding.logo_data && <button type="button" className="ghost" style={{marginLeft:10}} onClick={()=>setBranding(old=>({...old,logo_data:null}))}>Remove logo</button>}
-            </div>
-          </div>
-          <div style={{padding:17,background:"#f8fafc",border:"1px solid #e4eaf1",borderRadius:14}}>
-            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".1em",color:"#718198",fontWeight:800,marginBottom:12}}>Header preview</div>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:10,background:"white",border:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
-                {branding.logo_data ? <img src={branding.logo_data} alt="Logo preview" style={{width:"100%",height:"100%",objectFit:"contain",padding:4,boxSizing:"border-box"}}/> : <span style={{fontSize:19}}>♞</span>}
+              <div style={{fontWeight:800,fontSize:16,color:"#18253b",marginBottom:6}}>{branding.logo_data ? "Change your logo" : "Add your logo"}</div>
+              <p style={{fontSize:13,color:"#69788e",margin:"0 0 14px"}}>PNG, JPG or WebP · Up to 2 MB</p>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 16px",background:"#101c33",color:"white",borderRadius:10,fontWeight:750,cursor:"pointer",fontSize:13}}>
+                  Choose image
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo} style={{position:"absolute",width:1,height:1,opacity:0}}/>
+                </label>
+                {branding.logo_data && <button type="button" className="ghost" onClick={()=>setBranding(old=>({...old,logo_data:null}))}>Remove logo</button>}
               </div>
-              <div><div style={{fontSize:11,color:"#64748b"}}>STABLE APP</div><strong style={{fontSize:19,color:"#14223b"}}>{stableName || stable?.name || "Your stable"}</strong></div>
             </div>
           </div>
-          <button className="primary full" disabled={brandSaving}>{brandSaving ? "Saving logo..." : "Save Stable Logo"}</button>
+          <div style={{padding:"15px 18px",background:"#f8fafc",border:"1px solid #e5eaf1",borderRadius:12}}>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".09em",color:"#75849a",fontWeight:800,marginBottom:11}}>Preview</div>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:42,height:42,borderRadius:9,background:"white",border:"1px solid #e1e7ef",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                {branding.logo_data ? <img src={branding.logo_data} alt="Logo preview" style={{width:"100%",height:"100%",objectFit:"contain",padding:4,boxSizing:"border-box"}}/> : <span style={{fontSize:19,color:"#7d8da3"}}>♞</span>}
+              </div>
+              <strong style={{fontSize:17,color:"#14223b"}}>{stableName || stable?.name || "Your stable"}</strong>
+            </div>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end"}}><button className="primary" style={{minWidth:175}} disabled={brandSaving}>{brandSaving ? "Saving..." : "Save logo"}</button></div>
         </form>
       </article>}
 
