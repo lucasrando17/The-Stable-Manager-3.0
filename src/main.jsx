@@ -128,6 +128,9 @@ function App() {
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
   const [profileRefresh, setProfileRefresh] = useState(0);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [allStables, setAllStables] = useState([]);
+  const [selectedStableId, setSelectedStableId] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -163,7 +166,23 @@ function App() {
         setInviteStatus("");
       }
     }
-    const { data, error } = await supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).maybeSingle();
+    const [profileResult, adminResult] = await Promise.all([
+      supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).maybeSingle(),
+      supabase.from("website_admins").select("user_id").eq("user_id", session.user.id).maybeSingle()
+    ]);
+    const { data, error } = profileResult;
+    const superAdmin = !adminResult.error && !!adminResult.data;
+    setIsSuperAdmin(superAdmin);
+    if (superAdmin) {
+      const { data: stableRows, error: stableError } = await supabase.from("stables").select("*").order("name");
+      if (stableError) setToast(`Unable to load stables: ${stableError.message}`);
+      setAllStables(stableRows || []);
+      setSelectedStableId(current => current && (stableRows || []).some(st => st.id === current)
+        ? current : data?.stable_id || stableRows?.[0]?.id || "");
+    } else {
+      setAllStables([]);
+      setSelectedStableId("");
+    }
 
     if (error) {
       setToast("Login works, but profile setup needs to be completed.");
@@ -195,26 +214,40 @@ function App() {
     return <main className="page"><section className="card"><h2>Loading profile...</h2><p>Please wait while your account is checked.</p></section></main>;
   }
 
-  if (!profile.stable_id && inviteStatus) {
+  if (!profile.stable_id && !isSuperAdmin && inviteStatus) {
     return <main className="page"><section className="card"><h2>Invitation needs attention</h2><p>{inviteStatus}</p><p>Please contact your stable administrator for a new invitation if necessary.</p><button className="ghost" onClick={() => supabase.auth.signOut()}>Log out</button></section></main>;
   }
 
-  if (!profile.stable_id) {
+  if (!profile.stable_id && !isSuperAdmin) {
     return <StableApplicationOnboarding session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />;
   }
+
+  const activeStableId = isSuperAdmin ? selectedStableId : profile.stable_id;
+  const activeStable = isSuperAdmin ? allStables.find(item => item.id === activeStableId) || null : stable;
+  const activeProfile = isSuperAdmin
+    ? { ...profile, stable_id: activeStableId, role: "admin", is_trainer: true, stables: activeStable }
+    : profile;
 
   return <div className="app">
     {toast && <div className="toast">{toast}</div>}
     <header className="topbar">
       <div>
-        <p>{profile.role === "owner" ? "Owners Portal" : "Stable App"}</p>
-        <h1>{profile.role === "owner" ? profile.owner_name || profile.full_name : stable?.name || "Stable"}</h1>
+        <p>{isSuperAdmin ? "Super Administrator" : profile.role === "owner" ? "Owners Portal" : "Stable App"}</p>
+        <h1>{!isSuperAdmin && profile.role === "owner" ? profile.owner_name || profile.full_name : activeStable?.name || "Select a stable"}</h1>
       </div>
+      {isSuperAdmin && <label style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <span>Manage stable</span>
+        <select aria-label="Manage stable" value={selectedStableId} onChange={event => { setSelectedStableId(event.target.value); setTab("dashboard"); }}>
+          {!allStables.length && <option value="">No stables available</option>}
+          {allStables.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>}
       <button className="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18}/>Logout</button>
     </header>
-    {profile.role === "owner" || loginMode === "owner"
+    {!isSuperAdmin && (profile.role === "owner" || loginMode === "owner")
       ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />
-      : <StableApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />}
+      : activeStableId ? <StableApp key={activeStableId} profile={activeProfile} isSuperAdmin={isSuperAdmin} tab={tab} setTab={setTab} setToast={setToast} stable={activeStable} setStable={setStable} setProfile={setProfile} />
+      : <main className="page"><section className="card">No stables are available to manage.</section></main>}
   </div>;
 }
 
@@ -663,7 +696,7 @@ function InviteSignup({ onBack, setToast }) {
   </main>;
 }
 
-function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfile }) {
+function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfile, isSuperAdmin = false }) {
   const hidden = profile.role === "staff" ? ["finance", "staff"] : [];
   return <>
     <nav className="nav">
@@ -678,7 +711,7 @@ function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfi
     {tab === "updates" && <UpdatesPanel stableId={profile.stable_id} setToast={setToast} />}
     {tab === "analytics" && <Analytics stableId={profile.stable_id} role={profile.role} />}
     {tab === "invoices" && financeRoles.includes(profile.role) && <Invoices stableId={profile.stable_id} setToast={setToast} />}
-    {tab === "settings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} />}
+    {tab === "settings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} isSuperAdmin={isSuperAdmin} />}
     {moduleDefs[tab] && !hidden.includes(tab) && <GenericTable stableId={profile.stable_id} config={moduleDefs[tab]} setToast={setToast} role={profile.role} />}
   </>;
 }
@@ -703,12 +736,12 @@ function OwnerApp({ profile, tab, setTab, setToast, stable, setStable, setProfil
 }
 
 
-function SettingsPanel({ profile, stable, setStable, setProfile, setToast, ownerMode = false }) {
+function SettingsPanel({ profile, stable, setStable, setProfile, setToast, ownerMode = false, isSuperAdmin = false }) {
   const [name, setName] = useState(profile.full_name || profile.owner_name || "");
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
   const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
   const [saving, setSaving] = useState(false);
-  const [isWebsiteAdmin, setIsWebsiteAdmin] = useState(false);
+  const [isWebsiteAdmin, setIsWebsiteAdmin] = useState(isSuperAdmin);
 
   useEffect(() => {
     let active = true;
@@ -725,9 +758,10 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         setIsWebsiteAdmin(!error && !!data);
       }
     }
-    if (!ownerMode) checkWebsiteAdmin();
+    if (isSuperAdmin) setIsWebsiteAdmin(true);
+    else if (!ownerMode) checkWebsiteAdmin();
     return () => { active = false; };
-  }, [ownerMode]);
+  }, [ownerMode, isSuperAdmin]);
 
   async function saveAccount(event) {
     event.preventDefault();
@@ -785,7 +819,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       };
 
       setStable?.(updatedStable);
-      setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
+      if (!isSuperAdmin) setProfile?.(current => current ? { ...current, stables: updatedStable } : current);
       setStableName(nextName);
       setToast("Stable settings saved.");
     }
@@ -840,7 +874,10 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
-      {!ownerMode && ["admin", "trainer"].includes(profile.role) && <TeamInvitations profile={profile} setToast={setToast} />}
+      {!ownerMode && (isSuperAdmin || profile.role === "trainer" || (profile.role === "admin" && profile.is_trainer)) &&
+        <TeamInvitations profile={profile} setToast={setToast} isSuperAdmin={isSuperAdmin} />}
+      {!ownerMode && (isSuperAdmin || (profile.role === "admin" && profile.is_trainer)) &&
+        <ManageTeam profile={profile} setToast={setToast} isSuperAdmin={isSuperAdmin} />}
 
       {!ownerMode && isWebsiteAdmin && <StableApplicationsAdmin setToast={setToast} />}
       {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
@@ -865,7 +902,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
   </main>;
 }
 
-function TeamInvitations({ profile, setToast }) {
+function TeamInvitations({ profile, setToast, isSuperAdmin = false }) {
   const [role, setRole] = useState("staff");
   const [email, setEmail] = useState("");
   const [invites, setInvites] = useState([]);
@@ -929,7 +966,7 @@ function TeamInvitations({ profile, setToast }) {
       <label className="field"><span>Access role</span>
         <select value={role} onChange={event => setRole(event.target.value)}>
           <option value="staff">Staff</option>
-          <option value="trainer">Trainer</option>
+          {(isSuperAdmin || (profile.role === "admin" && profile.is_trainer)) && <option value="trainer">Trainer</option>}
           <option value="owner">Owner</option>
         </select>
       </label>
@@ -964,6 +1001,47 @@ function TeamInvitations({ profile, setToast }) {
           </div>
         </div>;
       })}
+  </article>;
+}
+
+function ManageTeam({ profile, setToast, isSuperAdmin = false }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function loadMembers() {
+    if (!profile.stable_id) { setMembers([]); setLoading(false); return; }
+    setLoading(true);
+    const { data, error } = await supabase.rpc("get_stable_members", { p_stable_id: profile.stable_id });
+    setLoading(false);
+    if (error) { setErrorMessage(error.message); setToast(`Unable to load team: ${error.message}`); }
+    else { setErrorMessage(""); setMembers(data || []); }
+  }
+
+  useEffect(() => { loadMembers(); }, [profile.stable_id]);
+
+  async function removeMember(member) {
+    if (member.role === "admin" || member.user_id === profile.id) return;
+    if (!window.confirm(`Remove ${member.full_name || "this member"} from this stable? Their account and historical records will be retained.`)) return;
+    setBusyId(member.user_id);
+    const { error } = await supabase.rpc("remove_stable_member", { p_user_id: member.user_id });
+    setBusyId(null);
+    if (error) setToast(`Could not remove member: ${error.message}`);
+    else { setToast("Stable membership removed."); await loadMembers(); }
+  }
+
+  return <article className="settings-card" style={{gridColumn:"1 / -1"}}>
+    <h3>Manage Team</h3>
+    <p>View stable account members and revoke access. Removing a member preserves their login and historical stable records.</p>
+    <button className="ghost" type="button" disabled={loading} onClick={loadMembers}>Refresh Members</button>
+    {loading ? <p>Loading members...</p> : errorMessage ? <p role="alert">{errorMessage}</p> : !members.length ? <p>No members found for this stable.</p> :
+      members.map(member => <div key={member.user_id} style={{borderTop:"1px solid #dbe3ef",padding:"14px 0",display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <div><strong>{member.full_name || "Unnamed member"}</strong><div className="muted">{member.role === "admin" && member.is_trainer ? "Stable Admin + Trainer" : member.role === "trainer" ? "Trainer" : member.role === "owner" ? "Owner" : member.role === "staff" ? "Staff" : member.role}</div></div>
+        {member.role !== "admin" && member.user_id !== profile.id &&
+          <button type="button" className="ghost" disabled={!!busyId} onClick={() => removeMember(member)}><Trash2 size={16}/> Remove</button>}
+        {member.role === "admin" && <span className="muted">Protected administrator</span>}
+      </div>)}
   </article>;
 }
 
