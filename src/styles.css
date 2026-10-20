@@ -1,27 +1,240 @@
-body{margin:0;font-family:Arial,sans-serif}.center{padding:40px}.toast{position:fixed;bottom:20px;left:20px;z-index:9999}.mfa-code-input{letter-spacing:.25em;text-align:center;font-size:24px}.qr-card{display:grid;place-items:center;padding:16px;background:#fff;border-radius:20px;border:1px solid #dbe3ef}.qr-card img{max-width:240px;width:100%;height:auto}.security-status{display:inline-flex;gap:8px;align-items:center;font-weight:700}.security-status.enabled{color:#047857}.security-status.disabled{color:#92400e}.factor-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;border:1px solid #dbe3ef;border-radius:16px}.muted{color:#64748b}.danger{background:#fee2e2;color:#991b1b}.button-row{display:flex;gap:8px;flex-wrap:wrap}
 
-/* Keep onboarding and registration forms above the slideshow */
-.onboarding-screen {
-  position: relative;
+/* =========================================
+   THE TROTTING STABLE APP
+   Global Styles
+========================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.center {
+  padding: 40px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9999;
+}
+
+/* =========================================
+   LOGIN AND REGISTRATION BACKGROUNDS
+========================================= */
+
+.onboarding-screen,
+.login-screen {
+  position: relative !important;
   isolation: isolate;
   min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
 }
 
-.onboarding-screen .photo-reel {
-  z-index: -1;
+.onboarding-screen > .photo-reel,
+.login-screen > .photo-reel {
+  position: absolute !important;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0 !important;
+  pointer-events: none;
 }
 
-.onboarding-screen .onboarding-card {
-  position: relative;
-  z-index: 2;
+/* =========================================
+   REGISTRATION AND APPLICATION CARD
+========================================= */
+
+.onboarding-screen > .onboarding-card,
+.login-screen > .login-card {
+  position: relative !important;
+  z-index: 100 !important;
+  display: block !important;
+  width: 100%;
+  max-width: 520px;
+  padding: 32px;
+  background: #ffffff !important;
+  color: #0b1026 !important;
+  border-radius: 20px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.onboarding-card h1,
+.login-card h1 {
+  margin-top: 0;
+  color: #0b1026;
+}
+
+.onboarding-card p,
+.login-card p {
+  line-height: 1.5;
+}
+
+.onboarding-card label,
+.login-card label {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.onboarding-card input,
+.onboarding-card textarea,
+.onboarding-card select,
+.login-card input:not([type="checkbox"]) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   background: #ffffff;
   color: #0b1026;
 }
 
-/* Ensure the form remains usable on mobile */
+.onboarding-card input[type="checkbox"],
+.login-card input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.onboarding-card button,
+.login-card button {
+  cursor: pointer;
+}
+
+.onboarding-card .primary,
+.login-card .primary {
+  background: #0b1026;
+  color: #ffffff;
+  border: none;
+  border-radius: 9px;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+
+.onboarding-card .full,
+.login-card .full {
+  width: 100%;
+}
+
+.onboarding-card .form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.onboarding-card .eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* =========================================
+   SECURITY AND ACCOUNT SETTINGS
+========================================= */
+
+.mfa-code-input {
+  letter-spacing: 0.25em;
+  text-align: center;
+  font-size: 24px;
+}
+
+.qr-card {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #dbe3ef;
+}
+
+.qr-card img {
+  max-width: 240px;
+  width: 100%;
+  height: auto;
+}
+
+.security-status {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.security-status.enabled {
+  color: #047857;
+}
+
+.security-status.disabled {
+  color: #92400e;
+}
+
+.factor-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dbe3ef;
+  border-radius: 16px;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS
+========================================= */
+
 @media (max-width: 600px) {
-  .onboarding-screen .onboarding-card {
-    width: min(100% - 24px, 520px);
-    margin-inline: auto;
+  .onboarding-screen,
+  .login-screen {
+    padding: 16px;
+    align-items: flex-start;
+    overflow-y: auto;
+  }
+
+  .onboarding-screen > .onboarding-card,
+  .login-screen > .login-card {
+    max-width: 100%;
+    padding: 24px;
+    margin: auto 0;
+    border-radius: 16px;
   }
 }
