@@ -226,6 +226,10 @@ function App() {
       : <StableApplicationOnboarding session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />;
   }
 
+  if (profile.stable_id && profile.role === "staff" && !profile.phone?.trim()) {
+    return <StaffPhoneOnboarding profile={profile} onSaved={phone => setProfile(current => ({ ...current, phone }))} />;
+  }
+
   const activeStableId = isSuperAdmin ? selectedStableId : profile.stable_id;
   const activeStable = isSuperAdmin ? allStables.find(item => item.id === activeStableId) || null : stable;
   const activeProfile = isSuperAdmin
@@ -257,25 +261,110 @@ function App() {
 
 
 
+function StaffPhoneOnboarding({ profile, onSaved }) {
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event) {
+    event.preventDefault();
+    const cleaned = phone.trim();
+    if (!/^[+()\d\s-]{8,22}$/.test(cleaned) || cleaned.replace(/\D/g, "").length < 8) {
+      setError("Please enter a valid phone number, including area or country code where needed.");
+      return;
+    }
+    setBusy(true); setError("");
+    const { error: updateError } = await supabase.rpc("set_my_staff_phone", { p_phone: cleaned });
+    setBusy(false);
+    if (updateError) { setError(updateError.message); return; }
+    onSaved(cleaned);
+  }
+  return <main className="onboarding-screen"><PhotoReel />
+    <section className="onboarding-card" style={{ maxWidth: 560 }}>
+      <p className="eyebrow">THE TROTTING STABLE APP · TEAM SETUP</p>
+      <div style={{ display: "inline-flex", padding: 13, borderRadius: 15, background: "#edf2ff", color: "#1e3a8a", marginBottom: 12 }}><Users size={28}/></div>
+      <h1>One last thing before you get started.</h1>
+      <p>Welcome to your stable team{profile.full_name ? `, ${profile.full_name}` : ""}. Add your phone number so your trainer and fellow team managers can contact you when needed.</p>
+      <form onSubmit={submit} className="form-grid">
+        <label className="field"><span>Mobile or contact number</span>
+          <input type="tel" autoComplete="tel" inputMode="tel" required placeholder="e.g. 0412 345 678" value={phone} onChange={event => setPhone(event.target.value)} />
+        </label>
+        <p style={{ fontSize: 13, opacity: .7, margin: 0 }}>Your number will appear in the Staff directory for your stable's authorised managers.</p>
+        {error && <p role="alert" className="login-message">{error}</p>}
+        <button className="primary full" disabled={busy}>{busy ? "Saving..." : "Save & Enter Stable"}</button>
+      </form>
+      <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
+    </section>
+  </main>;
+}
+
+function StaffDirectory({ stableId, setToast }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    supabase.rpc("get_staff_directory", { p_stable_id: stableId }).then(({ data, error }) => {
+      if (!active) return;
+      setLoading(false);
+      if (error) setToast(`Unable to load staff directory: ${error.message}`);
+      else setMembers(data || []);
+    });
+    return () => { active = false; };
+  }, [stableId]);
+  return <section className="settings-card" style={{ marginBottom: 20 }}>
+    <h3>Registered staff members</h3>
+    <p>Automatically populated when invited staff join your stable. Phone numbers are collected on their first login. Removing a member from the stable also removes them from this directory.</p>
+    {loading ? <p>Loading staff...</p> : !members.length ? <p>No registered staff members yet.</p> :
+      <div style={{ display: "grid", gap: 10 }}>
+        {members.map(member => <div key={member.user_id} style={{ padding: 14, border: "1px solid #dbe3ef", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div><strong>{member.full_name || "Unnamed staff member"}</strong><div className="muted">Staff · Registered account</div></div>
+          <div style={{ textAlign: "right" }}>{member.phone ? <a href={`tel:${member.phone.replace(/[^+\d]/g, "")}`}>{member.phone}</a> : <span className="muted">Phone not yet provided</span>}</div>
+        </div>)}
+      </div>}
+  </section>;
+}
+
+// Supabase may deliberately conceal whether an email exists to prevent account enumeration.
+// Only show a definite duplicate warning when Auth explicitly reports one.
+function signupAlreadyRegistered(data, error) {
+  if (error) return /already registered|already exists|user already registered|email address is already/i.test(error.message || "");
+  return Array.isArray(data?.user?.identities) && data.user.identities.length === 0;
+}
+
+function ExistingAccountNotice({ onBack }) {
+  return <div role="alert" style={{marginTop:16,padding:16,borderRadius:12,background:"#eef2ff",color:"#0b1026",lineHeight:1.55}}>
+    <strong>An account is already registered with this email address.</strong>
+    <p style={{margin:"8px 0 12px"}}>Please log in using your existing account instead of creating another one. You can use Forgot password on the login page if needed.</p>
+    <button type="button" className="ghost" onClick={onBack}>Go to login options</button>
+  </div>;
+}
+
 function StableApplicationSignup({ onBack }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   async function submit(event) {
+    setAlreadyRegistered(false);
     event.preventDefault();
     if (password.length < 8 || password !== confirm) {
       setMessage("Use a password of at least 8 characters and make sure both passwords match.");
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password,
       options: { emailRedirectTo: window.location.origin, data: { stable_application_signup: true } }
     });
     setBusy(false);
-    setMessage(error ? error.message : "Check your email to confirm your account, then log in to complete your stable application.");
+    if (signupAlreadyRegistered(data, error)) {
+      setAlreadyRegistered(true);
+      setMessage("");
+    } else {
+      setMessage(error ? error.message : "If this email is eligible for registration, check your inbox for confirmation instructions. Already registered? Use Stable Login instead.");
+    }
   }
   return <main className="login-screen"><PhotoReel /><section className="login-card">
     <button className="text" onClick={onBack}>← Back</button>
@@ -285,7 +374,7 @@ function StableApplicationSignup({ onBack }) {
       <label>Password<input type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
       <label>Confirm Password<input type="password" required value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
       <button className="primary full" disabled={busy}>{busy ? "Creating account..." : "Create Account"}</button>
-    </form>{message && <p role="status" className="login-message">{message}</p>}
+    </form>{alreadyRegistered && <ExistingAccountNotice onBack={onBack} />}{message && <p role="status" className="login-message">{message}</p>}
   </section></main>;
 }
 
@@ -740,10 +829,12 @@ function InviteSignup({ onBack, setToast }) {
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     setMessage("");
+    setAlreadyRegistered(false);
     const trimmedCode = code.trim();
     if (!trimmedCode || !fullName.trim() || !email.trim() || password.length < 8) {
       setMessage("Enter an invitation code, name, email and a password of at least 8 characters.");
@@ -754,7 +845,7 @@ function InviteSignup({ onBack, setToast }) {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -763,11 +854,15 @@ function InviteSignup({ onBack, setToast }) {
       }
     });
     setSubmitting(false);
+    if (signupAlreadyRegistered(data, error)) {
+      setAlreadyRegistered(true);
+      return;
+    }
     if (error) {
       setMessage(error.message);
       return;
     }
-    setMessage("Check your email and confirm your account. After confirmation, sign in to complete your invitation.");
+    setMessage("If this email is eligible for registration, check your inbox for confirmation instructions. Already have an account? Log in instead.");
   }
 
   return <main className="login-screen">
@@ -784,6 +879,7 @@ function InviteSignup({ onBack, setToast }) {
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} /> Show passwords</label>
         <button className="primary full" disabled={submitting}>{submitting ? "Creating account..." : "Create Account"}</button>
       </form>
+      {alreadyRegistered && <ExistingAccountNotice onBack={onBack} />}
       {message && <p className="login-message" role="status">{message}</p>}
     </section>
   </main>;
@@ -1480,6 +1576,7 @@ function GenericTable({ stableId, config, setToast, role = "staff" }) {
       {config.calendarField && <button className="ghost" onClick={() => setCalendar(!calendar)}><Calendar size={18}/>{calendar ? "Card View" : "Calendar"}</button>}
       {canEdit && <button className="primary" onClick={() => setModal({ mode: "add", record: blank() })}><Plus size={18}/>Add</button>}
     </section>
+    {config.table === "staff" && <StaffDirectory stableId={stableId} setToast={setToast} />}
     {calendar && config.calendarField && <PhoneCalendar rows={rows} dateField={config.calendarField} selectedDate={selectedDate} setSelectedDate={setSelectedDate} title={config.title} />}
     <section className="grid">
       <CollapsibleRecords rows={shown} threshold={config.table === "work_entries" ? 12 : 999999} render={row => <article className="record clickable" key={row.id} onClick={() => config.profile === "horse" ? setModal({ mode: "horseProfile", record: row }) : config.profile === "owner" ? setModal({ mode: "ownerProfile", record: row }) : null}>
