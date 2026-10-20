@@ -204,6 +204,17 @@ function App() {
     setTab(data.role === "owner" || loginMode === "owner" ? "ownerHome" : "dashboard");
   }
 
+  const activeStableId = isSuperAdmin ? selectedStableId : profile?.stable_id;
+  const activeStable = isSuperAdmin ? allStables.find(item => item.id === activeStableId) || null : stable;
+  const [brand, setBrand] = useState(null);
+  useEffect(() => {
+    if (!activeStableId) { setBrand(null); return; }
+    let alive = true;
+    supabase.from("stable_branding").select("*").eq("stable_id", activeStableId).maybeSingle()
+      .then(({ data }) => { if (alive) setBrand(data || null); });
+    return () => { alive = false; };
+  }, [activeStableId, tab]);
+
   if (loading) return <div className="center">Loading...</div>;
   if (session && passwordRecovery) return <PasswordResetForm onDone={() => setPasswordRecovery(false)} setToast={setToast} />;
   if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
@@ -230,16 +241,6 @@ function App() {
     return <StaffPhoneOnboarding profile={profile} onSaved={phone => setProfile(current => ({ ...current, phone, staff_phone_skipped: !phone }))} />;
   }
 
-  const activeStableId = isSuperAdmin ? selectedStableId : profile.stable_id;
-  const activeStable = isSuperAdmin ? allStables.find(item => item.id === activeStableId) || null : stable;
-  const [brand, setBrand] = useState(null);
-  useEffect(() => {
-    if (!activeStableId) { setBrand(null); return; }
-    let alive = true;
-    supabase.from("stable_branding").select("*").eq("stable_id", activeStableId).maybeSingle()
-      .then(({ data }) => { if (alive) setBrand(data || null); });
-    return () => { alive = false; };
-  }, [activeStableId, tab]);
   const activeProfile = isSuperAdmin
     ? { ...profile, stable_id: activeStableId, role: "admin", is_trainer: true, stables: activeStable }
     : profile;
