@@ -20,8 +20,7 @@ const photos = ["/login-photos/photo-1.jpg",
   "/login-photos/photo-5.jpg",
   "/login-photos/photo-6.jpg",
   "/login-photos/photo-7.jpg",
-  "/login-photos/photo-8.jpg"
-];
+  "/login-photos/photo-8.jpg"];
 
 const WORK_SECTORS = ["Jog - Cart", "Jog- Lead", "Jog- Jogger Machine", "Jog/Canter", "Gallop", "Trot", "Hopple", "Walking Machine", "Water Walk", "Race", "Trial", "Educational Trial", "Swim", "Beach Work", "Recovery"];
 const WARMUP_SECTORS = ["Jog/Canter", "Gallop", "Trot", "Hopple"];
