@@ -226,8 +226,8 @@ function App() {
       : <StableApplicationOnboarding session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />;
   }
 
-  if (profile.stable_id && profile.role === "staff" && !profile.phone?.trim()) {
-    return <StaffPhoneOnboarding profile={profile} onSaved={phone => setProfile(current => ({ ...current, phone }))} />;
+  if (profile.stable_id && profile.role === "staff" && !profile.phone?.trim() && !profile.staff_phone_skipped) {
+    return <StaffPhoneOnboarding profile={profile} onSaved={phone => setProfile(current => ({ ...current, phone, staff_phone_skipped: !phone }))} />;
   }
 
   const activeStableId = isSuperAdmin ? selectedStableId : profile.stable_id;
@@ -265,34 +265,34 @@ function StaffPhoneOnboarding({ profile, onSaved }) {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  async function submit(event) {
-    event.preventDefault();
+  async function finish(skip = false) {
     const cleaned = phone.trim();
-    if (!/^[+()\d\s-]{8,22}$/.test(cleaned) || cleaned.replace(/\D/g, "").length < 8) {
-      setError("Please enter a valid phone number, including area or country code where needed.");
+    if (!skip && (!/^[+()\d\s-]{8,22}$/.test(cleaned) || cleaned.replace(/\D/g, "").length < 8)) {
+      setError("Please enter a valid phone number, or choose Skip for now.");
       return;
     }
     setBusy(true); setError("");
-    const { error: updateError } = await supabase.rpc("set_my_staff_phone", { p_phone: cleaned });
+    const { error: updateError } = await supabase.rpc("complete_staff_phone_onboarding", { p_phone: skip ? null : cleaned, p_skip: skip });
     setBusy(false);
     if (updateError) { setError(updateError.message); return; }
-    onSaved(cleaned);
+    onSaved(skip ? "" : cleaned);
   }
   return <main className="onboarding-screen"><PhotoReel />
-    <section className="onboarding-card" style={{ maxWidth: 560 }}>
-      <p className="eyebrow">THE TROTTING STABLE APP · TEAM SETUP</p>
-      <div style={{ display: "inline-flex", padding: 13, borderRadius: 15, background: "#edf2ff", color: "#1e3a8a", marginBottom: 12 }}><Users size={28}/></div>
-      <h1>One last thing before you get started.</h1>
-      <p>Welcome to your stable team{profile.full_name ? `, ${profile.full_name}` : ""}. Add your phone number so your trainer and fellow team managers can contact you when needed.</p>
-      <form onSubmit={submit} className="form-grid">
-        <label className="field"><span>Mobile or contact number</span>
-          <input type="tel" autoComplete="tel" inputMode="tel" required placeholder="e.g. 0412 345 678" value={phone} onChange={event => setPhone(event.target.value)} />
+    <section className="onboarding-card" style={{ maxWidth: 570, padding: "clamp(24px, 4vw, 48px)", borderRadius: 22, boxShadow: "0 22px 70px rgba(6, 17, 43, .16)" }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 9, background: "#eef3ff", color: "#1d3b80", borderRadius: 999, padding: "8px 13px", fontWeight: 750, fontSize: 12, letterSpacing: ".05em", marginBottom: 23 }}><Users size={16}/> TEAM SETUP · OPTIONAL</div>
+      <div style={{ width: 58, height: 58, borderRadius: 18, display: "grid", placeItems: "center", background: "#e9efff", color: "#203e88", marginBottom: 18 }}><UserRoundCheck size={29}/></div>
+      <h1 style={{ fontSize: "clamp(29px, 3.4vw, 38px)", lineHeight: 1.14, marginBottom: 14 }}>Welcome to the team{profile.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}.</h1>
+      <p style={{ fontSize: 16, lineHeight: 1.6, color: "#58667e", marginBottom: 25 }}>You're all set to enter your stable. Add a contact number so your trainer can reach you easily, or skip this step for now.</p>
+      <form onSubmit={event => { event.preventDefault(); finish(false); }} style={{ display: "grid", gap: 14 }}>
+        <label className="field"><span>Contact number <span style={{ fontWeight: 400, opacity: .65 }}>(optional)</span></span>
+          <input type="tel" autoComplete="tel" inputMode="tel" placeholder="e.g. 0412 345 678" value={phone} onChange={event => setPhone(event.target.value)} style={{ minHeight: 52 }}/>
         </label>
-        <p style={{ fontSize: 13, opacity: .7, margin: 0 }}>Your number will appear in the Staff directory for your stable's authorised managers.</p>
+        <p style={{ fontSize: 13, lineHeight: 1.5, color: "#66758e", margin: 0 }}>Only authorised stable managers can see your number in the staff directory.</p>
         {error && <p role="alert" className="login-message">{error}</p>}
-        <button className="primary full" disabled={busy}>{busy ? "Saving..." : "Save & Enter Stable"}</button>
+        <button className="primary full" type="submit" disabled={busy} style={{ minHeight: 49, borderRadius: 12 }}>{busy ? "Please wait..." : "Save Number & Continue"}<ArrowRight size={17}/></button>
+        <button className="ghost full" type="button" disabled={busy} onClick={() => finish(true)} style={{ minHeight: 46, borderRadius: 12 }}>Skip for now</button>
       </form>
-      <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
+      <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #e5eaf2", textAlign: "center" }}><button className="text" onClick={() => supabase.auth.signOut()}>Log out</button></div>
     </section>
   </main>;
 }
@@ -311,17 +311,21 @@ function StaffDirectory({ stableId, setToast }) {
     });
     return () => { active = false; };
   }, [stableId]);
-  return <section className="settings-card" style={{ marginBottom: 20 }}>
-    <h3>Registered staff members</h3>
-    <p>Automatically populated when invited staff join your stable. Phone numbers are collected on their first login. Removing a member from the stable also removes them from this directory.</p>
-    {loading ? <p>Loading staff...</p> : !members.length ? <p>No registered staff members yet.</p> :
-      <div style={{ display: "grid", gap: 10 }}>
-        {members.map(member => <div key={member.user_id} style={{ padding: 14, border: "1px solid #dbe3ef", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div><strong>{member.full_name || "Unnamed staff member"}</strong><div className="muted">Staff · Registered account</div></div>
-          <div style={{ textAlign: "right" }}>{member.phone ? <a href={`tel:${member.phone.replace(/[^+\d]/g, "")}`}>{member.phone}</a> : <span className="muted">Phone not yet provided</span>}</div>
-        </div>)}
-      </div>}
-  </section>;
+  return <>
+    {loading ? <p className="muted">Loading registered staff...</p> : members.length > 0 && <section className="grid" style={{ marginBottom: 16 }}>
+      {members.map(member => <article className="record" key={member.user_id}>
+        <div className="record-head">
+          <div><h3>{member.full_name || "Unnamed staff member"}</h3><p>Staff · Registered account</p></div>
+          <span title="Linked staff account" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 12, background: "#e7f4ff", color: "#17608c" }}><UserRoundCheck size={19}/></span>
+        </div>
+        <div className="details">
+          <div><span>Role</span><strong>Staff</strong></div>
+          <div><span>Phone</span><strong>{member.phone ? <a href={`tel:${member.phone.replace(/[^+\d]/g, "")}`}>{member.phone}</a> : "Not provided"}</strong></div>
+          <div><span>Account</span><strong>Registered</strong></div>
+        </div>
+      </article>)}
+    </section>}
+  </>;
 }
 
 // Supabase may deliberately conceal whether an email exists to prevent account enumeration.
