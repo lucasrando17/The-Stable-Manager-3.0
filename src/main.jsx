@@ -232,17 +232,26 @@ function App() {
 
   const activeStableId = isSuperAdmin ? selectedStableId : profile.stable_id;
   const activeStable = isSuperAdmin ? allStables.find(item => item.id === activeStableId) || null : stable;
+  const [brand, setBrand] = useState(null);
+  useEffect(() => {
+    if (!activeStableId) { setBrand(null); return; }
+    let alive = true;
+    supabase.from("stable_branding").select("*").eq("stable_id", activeStableId).maybeSingle()
+      .then(({ data }) => { if (alive) setBrand(data || null); });
+    return () => { alive = false; };
+  }, [activeStableId, tab]);
   const activeProfile = isSuperAdmin
     ? { ...profile, stable_id: activeStableId, role: "admin", is_trainer: true, stables: activeStable }
     : profile;
 
-  return <div className="app">
+  return <div className="app" style={brand ? {"--stable-primary": brand.primary_color, "--stable-accent": brand.accent_color, "--stable-background": brand.background_color} : {}}>
+    {brand && <style>{`.app .nav button.active, .app button.primary { background: var(--stable-primary) !important; border-color: var(--stable-primary) !important; color: white !important; } .app .module-icon { color: var(--stable-primary) !important; } .app .page { background: var(--stable-background) !important; } .app .nav button.active svg { color: white !important; } .app .topbar { border-bottom: 3px solid var(--stable-accent) !important; }`}</style>}
     {isSuperAdmin && <style>{ADMIN_UI_CSS}</style>}
     {toast && <div className="toast">{toast}</div>}
     <header className="topbar">
       <div>
         <p>{isSuperAdmin ? "Super Administrator" : profile.role === "owner" ? "Owners Portal" : "Stable App"}</p>
-        <h1>{!isSuperAdmin && profile.role === "owner" ? profile.owner_name || profile.full_name : activeStable?.name || "Select a stable"}</h1>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>{brand?.logo_data && <img src={brand.logo_data} alt="Stable logo" style={{width:52,height:52,objectFit:"contain",borderRadius:10}}/>}<h1>{!isSuperAdmin && profile.role === "owner" ? profile.owner_name || profile.full_name : activeStable?.name || "Select a stable"}</h1></div>
       </div>
       {isSuperAdmin && <StableSwitcher
         stables={allStables}
@@ -297,34 +306,67 @@ function StaffPhoneOnboarding({ profile, onSaved }) {
   </main>;
 }
 
-function StaffDirectory({ stableId, setToast }) {
+function StaffDirectory({ stableId, setToast, search = "" }) {
   const [members, setMembers] = useState([]);
+  const [details, setDetails] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    supabase.rpc("get_staff_directory", { p_stable_id: stableId }).then(({ data, error }) => {
-      if (!active) return;
-      setLoading(false);
-      if (error) setToast(`Unable to load staff directory: ${error.message}`);
-      else setMembers(data || []);
-    });
-    return () => { active = false; };
-  }, [stableId]);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  async function load() {
+    const [directory, extra] = await Promise.all([
+      supabase.rpc("get_staff_directory", { p_stable_id: stableId }),
+      supabase.from("staff_member_details").select("*").eq("stable_id", stableId)
+    ]);
+    if (directory.error) setToast(`Unable to load staff: ${directory.error.message}`);
+    if (extra.error) setToast(`Unable to load staff details: ${extra.error.message}`);
+    setMembers(directory.data || []); setDetails(extra.data || []); setLoading(false);
+  }
+  useEffect(() => { setLoading(true); load(); }, [stableId]);
+  async function save(event) {
+    event.preventDefault(); setSaving(true);
+    const { error } = await supabase.from("staff_member_details").upsert({
+      stable_id: stableId, user_id: editing.user_id,
+      display_name: editing.display_name.trim(), position: editing.position.trim(),
+      phone: editing.phone.trim(), email: editing.email.trim(), notes: editing.notes.trim()
+    }, { onConflict: "stable_id,user_id" });
+    setSaving(false);
+    if (error) { setToast(error.message); return; }
+    setEditing(null); setToast("Staff card updated."); await load();
+  }
   return <>
-    {loading ? <p className="muted">Loading registered staff...</p> : members.length > 0 && <section className="grid" style={{ marginBottom: 16 }}>
-      {members.map(member => <article className="record" key={member.user_id}>
-        <div className="record-head">
-          <div><h3>{member.full_name || "Unnamed staff member"}</h3><p>Staff · Registered account</p></div>
-          <span title="Linked staff account" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 12, background: "#e7f4ff", color: "#17608c" }}><UserRoundCheck size={19}/></span>
-        </div>
-        <div className="details">
-          <div><span>Role</span><strong>Staff</strong></div>
-          <div><span>Phone</span><strong>{member.phone ? <a href={`tel:${member.phone.replace(/[^+\d]/g, "")}`}>{member.phone}</a> : "Not provided"}</strong></div>
-          <div><span>Account</span><strong>Registered</strong></div>
-        </div>
-      </article>)}
+    {loading ? <p className="muted">Loading registered staff...</p> : <section className="grid" style={{ marginBottom: 16 }}>
+      {members.filter(member => {
+        const extra = details.find(row => row.user_id === member.user_id) || {};
+        return JSON.stringify({ ...member, ...extra }).toLowerCase().includes(search.toLowerCase());
+      }).map(member => {
+        const extra = details.find(row => row.user_id === member.user_id) || {};
+        const name = extra.display_name || member.full_name || "Unnamed staff member";
+        const phone = extra.phone || member.phone || "";
+        return <article className="record" key={member.user_id}>
+          <div className="record-head">
+            <div><h3>{name}</h3><p>{extra.position || "Staff"} · Registered account</p></div>
+            <div className="button-row">
+              <button className="edit" title="Edit staff card" onClick={() => setEditing({ user_id: member.user_id, display_name: extra.display_name || member.full_name || "", position: extra.position || "Staff", phone, email: extra.email || "", notes: extra.notes || "" })}><Edit3 size={16}/></button>
+              <span title="Linked account — manage membership under Settings" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 12, background: "#e7f4ff", color: "#17608c" }}><UserRoundCheck size={19}/></span>
+            </div>
+          </div>
+          <div className="details">
+            <div><span>Role</span><strong>{extra.position || "Staff"}</strong></div>
+            <div><span>Phone</span><strong>{phone ? <a href={`tel:${phone.replace(/[^+\d]/g, "")}`}>{phone}</a> : "Not provided"}</strong></div>
+            <div><span>Email</span><strong>{extra.email || "Not provided"}</strong></div>
+            <div><span>Notes</span><strong>{extra.notes || "-"}</strong></div>
+          </div>
+        </article>;
+      })}
     </section>}
+    {editing && <div className="modal-backdrop" style={{position:"fixed",inset:0,background:"#071226aa",zIndex:1000,display:"grid",placeItems:"center",padding:16}} onClick={() => setEditing(null)}>
+      <form className="settings-card" style={{width:"min(520px,100%)",maxHeight:"90vh",overflow:"auto",background:"white"}} onClick={e => e.stopPropagation()} onSubmit={save}>
+        <h3>Edit Registered Staff</h3><p>Changes update this stable's directory card, not the person's login account. Remove access from Settings → Manage Team.</p>
+        {[ ["display_name","Name"],["position","Role / Position"],["phone","Phone"],["email","Email"] ].map(([key,label]) => <label className="field" key={key}><span>{label}</span><input value={editing[key]} onChange={e => setEditing(old => ({...old,[key]:e.target.value}))}/></label>)}
+        <label className="field"><span>Notes</span><textarea value={editing.notes} onChange={e => setEditing(old => ({...old,notes:e.target.value}))}/></label>
+        <div className="button-row"><button type="button" className="ghost" onClick={() => setEditing(null)}>Cancel</button><button className="primary" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button></div>
+      </form>
+    </div>}
   </>;
 }
 
@@ -1041,6 +1083,34 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
   const [ownerName, setOwnerName] = useState(profile.owner_name || profile.full_name || "");
   const [stableName, setStableName] = useState(stable?.name || profile.stables?.name || "");
   const [saving, setSaving] = useState(false);
+  const [branding, setBranding] = useState({primary_color:"#0d1730",accent_color:"#d9a441",background_color:"#f5f7fb",logo_data:null});
+  const [brandSaving, setBrandSaving] = useState(false);
+  useEffect(() => {
+    if (!profile.stable_id) return;
+    supabase.from("stable_branding").select("*").eq("stable_id", profile.stable_id).maybeSingle()
+      .then(({data}) => {if(data) setBranding(old=>({...old,...data}));});
+  }, [profile.stable_id]);
+  async function pickLogo(event) {
+    const file = event.target.files?.[0]; if (!file) return;
+    if (!file.type.startsWith("image/")) { setToast("Choose an image file."); return; }
+    if (file.size > 2000000) { setToast("Logo must be under 2 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image(); img.onload = () => {
+        const canvas = document.createElement("canvas"); const scale = Math.min(1, 320 / Math.max(img.width,img.height));
+        canvas.width = Math.max(1,Math.round(img.width*scale)); canvas.height = Math.max(1,Math.round(img.height*scale));
+        canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+        const data = canvas.toDataURL("image/png");
+        if (data.length > 230000) { setToast("Logo is too detailed. Try a simpler or smaller image."); return; }
+        setBranding(old=>({...old,logo_data:data}));
+      }; img.onerror = () => setToast("Unable to read logo image."); img.src = reader.result;
+    }; reader.readAsDataURL(file);
+  }
+  async function saveBranding(event) {
+    event.preventDefault(); setBrandSaving(true);
+    const {error} = await supabase.from("stable_branding").upsert({stable_id:profile.stable_id,primary_color:branding.primary_color,accent_color:branding.accent_color,background_color:branding.background_color,logo_data:branding.logo_data},{onConflict:"stable_id"});
+    setBrandSaving(false); setToast(error ? error.message : "Branding saved. Open another tab to see the updated theme.");
+  }
   async function saveAccount(event) {
     event.preventDefault();
     setSaving(true);
@@ -1149,6 +1219,17 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
           <label className="field"><span>Stable Name</span><input value={stableName} onChange={event => setStableName(event.target.value)} /></label>
           <label className="field"><span>Stable ID</span><input value={profile.stable_id || ""} disabled /></label>
           <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Stable"}</button>
+        </form>
+      </article>}
+
+      {!ownerMode && (profile.role === "admin" || isSuperAdmin) && <article className="settings-card">
+        <h3>Stable Branding</h3><p>Customise the appearance of your stable's workspace. The logo and colour scheme are shared with its members.</p>
+        <form className="form-grid" onSubmit={saveBranding}>
+          <label className="field"><span>Stable Logo (PNG, JPG or WebP)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo}/></label>
+          {branding.logo_data && <div style={{display:"flex",alignItems:"center",gap:14}}><img src={branding.logo_data} alt="Logo preview" style={{width:86,height:86,objectFit:"contain"}}/><button type="button" className="ghost" onClick={()=>setBranding(old=>({...old,logo_data:null}))}>Remove logo</button></div>}
+          {[["primary_color","Primary colour"],["accent_color","Accent colour"],["background_color","Background colour"]].map(([key,label])=><label className="field" key={key}><span>{label}</span><div style={{display:"flex",alignItems:"center",gap:12}}><input type="color" value={branding[key]} onChange={e=>setBranding(old=>({...old,[key]:e.target.value}))} style={{width:64,height:42,padding:2}}/><strong>{branding[key]}</strong></div></label>)}
+          <div style={{borderRadius:12,padding:18,background:branding.background_color,border:`2px solid ${branding.accent_color}`}}><div style={{display:"flex",alignItems:"center",gap:10}}>{branding.logo_data && <img src={branding.logo_data} alt="" style={{width:40,height:40,objectFit:"contain"}}/>}<strong>Live colour preview</strong></div><div style={{background:branding.primary_color,color:"white",borderRadius:9,padding:"10px 16px",marginTop:12}}>Primary action</div></div>
+          <button className="primary full" disabled={brandSaving}>{brandSaving ? "Saving..." : "Save Stable Branding"}</button>
         </form>
       </article>}
 
@@ -1637,7 +1718,7 @@ function GenericTable({ stableId, config, setToast, role = "staff" }) {
       {config.calendarField && <button className="ghost" onClick={() => setCalendar(!calendar)}><Calendar size={18}/>{calendar ? "Card View" : "Calendar"}</button>}
       {canEdit && <button className="primary" onClick={() => setModal({ mode: "add", record: blank() })}><Plus size={18}/>Add</button>}
     </section>
-    {config.table === "staff" && <StaffDirectory stableId={stableId} setToast={setToast} />}
+    {config.table === "staff" && <StaffDirectory stableId={stableId} setToast={setToast} search={search} />}
     {calendar && config.calendarField && <PhoneCalendar rows={rows} dateField={config.calendarField} selectedDate={selectedDate} setSelectedDate={setSelectedDate} title={config.title} />}
     <section className="grid">
       <CollapsibleRecords rows={shown} threshold={config.table === "work_entries" ? 12 : 999999} render={row => <article className="record clickable" key={row.id} onClick={() => config.profile === "horse" ? setModal({ mode: "horseProfile", record: row }) : config.profile === "owner" ? setModal({ mode: "ownerProfile", record: row }) : null}>
