@@ -762,6 +762,8 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
+      {!ownerMode && profile.role === "admin" && <InvitationsPanel stableId={profile.stable_id} setToast={setToast} />}
+
       {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
 
       <article className="settings-card">
@@ -782,6 +784,101 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>
     </section>
   </main>;
+}
+
+function InvitationsPanel({ stableId, setToast }) {
+  const [invites, setInvites] = useState([]);
+  const [role, setRole] = useState("staff");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [newCode, setNewCode] = useState("");
+
+  async function loadInvites() {
+    if (!stableId) return;
+    setLoading(true);
+    const { data, error: loadError } = await supabase.from("invite_codes")
+      .select("id,code,role,email,created_at,expires_at,used_at,used_by")
+      .eq("stable_id", stableId).order("created_at", { ascending: false }).limit(100);
+    setLoading(false);
+    if (loadError) setError(loadError.message);
+    else { setInvites(data || []); setError(""); }
+  }
+
+  useEffect(() => { loadInvites(); }, [stableId]);
+
+  async function generateInvite(event) {
+    event.preventDefault();
+    if (!stableId || busy) return;
+    setBusy(true);
+    setError("");
+    setNewCode("");
+    const { data, error: rpcError } = await supabase.rpc("create_stable_invite", {
+      p_stable_id: stableId, p_role: role, p_email: email.trim() || null
+    });
+    setBusy(false);
+    if (rpcError) { setError(rpcError.message); return; }
+    setNewCode(data);
+    setEmail("");
+    setToast("Invitation code created.");
+    await loadInvites();
+  }
+
+  async function revokeInvite(invite) {
+    if (!window.confirm("Revoke this invitation? It will no longer be valid.")) return;
+    setBusy(true);
+    const { error: rpcError } = await supabase.rpc("revoke_stable_invite", { p_invite_id: invite.id });
+    setBusy(false);
+    if (rpcError) { setError(rpcError.message); return; }
+    if (newCode === invite.code) setNewCode("");
+    setToast("Invitation revoked.");
+    await loadInvites();
+  }
+
+  const status = invite => invite.used_at || invite.used_by ? "Used"
+    : invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now() ? "Expired" : "Active";
+
+  return <article className="settings-card" style={{ gridColumn: "1 / -1" }}>
+    <h3>Stable Invitations</h3>
+    <p>Generate an invitation for someone joining this stable. Share the code privately; they can enter it under “Join With Invite Code” on the homepage.</p>
+    <form className="form-grid" onSubmit={generateInvite}>
+      <label className="field"><span>Account access</span>
+        <select value={role} onChange={e => setRole(e.target.value)}>
+          <option value="staff">Staff</option>
+          <option value="trainer">Trainer</option>
+          <option value="owner">Owner</option>
+          <option value="admin">Stable administrator (full access)</option>
+        </select>
+      </label>
+      <label className="field"><span>Recipient email (optional)</span>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="person@example.com" />
+      </label>
+      <button type="submit" className="primary full" disabled={busy || !stableId}>{busy ? "Working..." : "Generate Invite Code"}</button>
+    </form>
+    {newCode && <div style={{ marginTop: 16, padding: 16, border: "1px solid #cbd5e1", borderRadius: 12 }}>
+      <strong>New invitation code</strong>
+      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, overflowWrap: "anywhere" }}>{newCode}</p>
+      <button type="button" className="ghost" onClick={async () => {
+        try { await navigator.clipboard.writeText(newCode); setToast("Code copied."); }
+        catch { setToast("Copy the code shown above manually."); }
+      }}>Copy Code</button>
+      <p>This code expires in 7 days and can only be used once. The recipient must confirm their email before joining.</p>
+    </div>}
+    {error && <p role="alert" style={{ color: "#b91c1c", overflowWrap: "anywhere" }}>{error}</p>}
+    <h4 style={{ marginTop: 24 }}>Recent invitations</h4>
+    {loading ? <p>Loading invitations...</p> : invites.length === 0 ? <p>No invitations created yet.</p> :
+      <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+        <thead><tr><th>Code</th><th>Role</th><th>Email</th><th>Status</th><th>Expires</th><th>Action</th></tr></thead>
+        <tbody>{invites.map(invite => <tr key={invite.id}>
+          <td style={{ padding: "10px 6px", fontFamily: "monospace" }}>{invite.code}</td>
+          <td>{invite.role}</td><td>{invite.email || "Any email"}</td>
+          <td>{status(invite)}</td>
+          <td>{invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : "Never"}</td>
+          <td>{status(invite) === "Active" && <button type="button" className="ghost" disabled={busy} onClick={() => revokeInvite(invite)}>Revoke</button>}</td>
+        </tr>)}</tbody>
+      </table></div>}
+  </article>;
 }
 
 const editableWebsiteFields = [
