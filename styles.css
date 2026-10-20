@@ -143,3 +143,24 @@ button{cursor:pointer}
 }
 
 .show-more{margin-top:8px}.show-more-card{display:grid;place-items:center}
+
+/* Fix invisible stable application form */
+.onboarding-screen {
+  position: relative !important;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.onboarding-screen > .photo-reel {
+  z-index: 0 !important;
+  pointer-events: none;
+}
+
+.onboarding-screen > .onboarding-card {
+  position: relative !important;
+  z-index: 100 !important;
+  background: #ffffff !important;
+  color: #0b1026 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
