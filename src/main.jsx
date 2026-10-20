@@ -127,6 +127,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
+  const [profileRefresh, setProfileRefresh] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -143,7 +144,7 @@ function App() {
 
   useEffect(() => {
     if (session?.user?.id) loadProfile();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profileRefresh]);
 
   useEffect(() => {
     if (!toast) return;
@@ -187,6 +188,7 @@ function App() {
   if (!session && entry === "stableLogin") return <Login mode="stable" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "ownerLogin") return <Login mode="owner" onBack={() => setEntry("landing")} setLoginMode={setLoginMode} />;
   if (!session && entry === "invite") return <InviteSignup onBack={() => setEntry("landing")} setToast={setToast} />;
+  if (!session && entry === "apply") return <StableApplicationSignup onBack={() => setEntry("landing")} />;
   if (!session) return <Landing setEntry={setEntry} />;
 
   if (!profile) {
@@ -198,7 +200,7 @@ function App() {
   }
 
   if (!profile.stable_id) {
-    return <CreateStableOnboarding session={session} setProfile={setProfile} setStable={setStable} setToast={setToast} />;
+    return <StableApplicationOnboarding session={session} refreshProfile={() => setProfileRefresh(n => n + 1)} />;
   }
 
   return <div className="app">
@@ -218,106 +220,92 @@ function App() {
 
 
 
-function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
-  const [stableName, setStableName] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [step, setStep] = useState(1);
-  const [saving, setSaving] = useState(false);
-
-  async function createStable(event) {
+function StableApplicationSignup({ onBack }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit(event) {
     event.preventDefault();
-
-    if (!stableName.trim()) {
-      setToast("Enter your stable name.");
+    if (password.length < 8 || password !== confirm) {
+      setMessage("Use a password of at least 8 characters and make sure both passwords match.");
       return;
     }
-
-    if (!fullName.trim()) {
-      setToast("Enter your name.");
-      return;
-    }
-
-    setSaving(true);
-
-    const { data: stableRow, error: stableError } = await supabase
-      .from("stables")
-      .insert({ name: stableName.trim() })
-      .select()
-      .single();
-
-    if (stableError) {
-      setSaving(false);
-      setToast(stableError.message);
-      return;
-    }
-
-    const profilePayload = {
-      id: session.user.id,
-      stable_id: stableRow.id,
-      role: "admin",
-      full_name: fullName.trim(),
-      owner_name: fullName.trim()
-    };
-
-    const { data: profileRow, error: profileError } = await supabase
-      .from("profiles")
-      .upsert(profilePayload)
-      .select("*, stables(*)")
-      .single();
-
-    if (profileError) {
-      setSaving(false);
-      setToast(profileError.message);
-      return;
-    }
-
-    setProfile(profileRow);
-    setStable(stableRow);
-    setToast("Stable created.");
-    setSaving(false);
+    setBusy(true);
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(), password,
+      options: { emailRedirectTo: window.location.origin, data: { stable_application_signup: true } }
+    });
+    setBusy(false);
+    setMessage(error ? error.message : "Check your email to confirm your account, then log in to complete your stable application.");
   }
-
-  return <main className="onboarding-screen">
-    <PhotoReel />
-    <section className="onboarding-card">
-      <p className="eyebrow">Welcome to The Trotting Stable App</p>
-      <h1>Create your stable</h1>
-      <p className="onboarding-lead">
-        Set up your stable first. Once this is complete, you can add horses, owners, staff, work entries, invoices and updates.
-      </p>
-
-      <div className="onboarding-steps">
-        <button className={step === 1 ? "active" : ""} onClick={() => setStep(1)}>1. Stable</button>
-        <button className={step === 2 ? "active" : ""} onClick={() => setStep(2)}>2. What comes next</button>
-      </div>
-
-      {step === 1 && <form className="form-grid" onSubmit={createStable}>
-        <label className="field">
-          <span>Stable Name</span>
-          <input value={stableName} onChange={e => setStableName(e.target.value)} placeholder="Example: Rando Racing" />
-        </label>
-
-        <label className="field">
-          <span>Your Name</span>
-          <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Example: Lucas Rando" />
-        </label>
-
-
-        <button className="primary full" disabled={saving}>{saving ? "Creating stable..." : "Create Stable"}</button>
-      </form>}
-
-      {step === 2 && <section className="next-steps-grid">
-        <article><strong>Add horses</strong><span>Create horse profiles with age, sex, trainer, status and targets.</span></article>
-        <article><strong>Add owners</strong><span>Create owner records and assign ownership percentages.</span></article>
-        <article><strong>Invite users</strong><span>Invite staff, drivers, owners or guests once team invites are enabled.</span></article>
-        <article><strong>Start recording</strong><span>Use work, racing, vet, farrier, feed, gear, invoices and updates.</span></article>
-      </section>}
-
-      <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
-    </section>
-  </main>;
+  return <main className="login-screen"><PhotoReel /><section className="login-card">
+    <button className="text" onClick={onBack}>← Back</button>
+    <h1>Apply for a Stable</h1><p>Create your account first. Your stable will not be activated until your application is approved.</p>
+    <form onSubmit={submit}>
+      <label>Email<input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
+      <label>Password<input type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
+      <label>Confirm Password<input type="password" required value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
+      <button className="primary full" disabled={busy}>{busy ? "Creating account..." : "Create Account"}</button>
+    </form>{message && <p role="status" className="login-message">{message}</p>}
+  </section></main>;
 }
 
+function StableApplicationOnboarding({ session, refreshProfile }) {
+  const [application, setApplication] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [stableName, setStableName] = useState("");
+  const [contactName, setContactName] = useState(session.user.user_metadata?.invited_full_name || "");
+  const [message, setMessage] = useState("");
+  async function load() {
+    setChecking(true);
+    const { data, error: queryError } = await supabase.from("stable_applications")
+      .select("id,stable_name,status,created_at,review_notes")
+      .eq("applicant_id", session.user.id).order("created_at", { ascending: false }).limit(1);
+    if (queryError) setError(queryError.message);
+    else { setError(""); setApplication(data?.[0] || null); }
+    setChecking(false);
+  }
+  useEffect(() => { load(); }, [session.user.id]);
+  async function submit(event) {
+    event.preventDefault();
+    if (!session.user.email_confirmed_at) { setError("Confirm your email address before applying."); return; }
+    setBusy(true); setError("");
+    const { error: insertError } = await supabase.from("stable_applications").insert({
+      applicant_id: session.user.id, stable_name: stableName.trim(),
+      contact_name: contactName.trim(), contact_email: session.user.email, message: message.trim() || null
+    });
+    setBusy(false);
+    if (insertError) setError(insertError.message);
+    else await load();
+  }
+  return <main className="onboarding-screen"><PhotoReel /><section className="onboarding-card">
+    <p className="eyebrow">The Trotting Stable App</p><h1>Stable application</h1>
+    {checking ? <p>Checking your application...</p> : application?.status === "pending" ? <>
+      <h2>Awaiting approval</h2><p>Your application for <strong>{application.stable_name}</strong> has been submitted.</p>
+      <p>You'll be able to access your stable after the website administrator approves it.</p>
+      <button className="ghost" onClick={load}>Refresh status</button>
+    </> : application?.status === "approved" ? <>
+      <p>Your application has been approved. Refresh your account to enter your stable.</p>
+      <button className="primary" onClick={refreshProfile}>Enter Stable</button>
+    </> : <>
+      {application?.status === "rejected" && <p>Your previous application was not approved.{application.review_notes ? ` Reason: ${application.review_notes}` : ""} You can submit another application.</p>}
+      <p>Submit your stable details for approval. No stable is created until your application is accepted.</p>
+      <form className="form-grid" onSubmit={submit}>
+        <label className="field"><span>Stable Name</span><input required minLength={2} maxLength={120} value={stableName} onChange={e => setStableName(e.target.value)} /></label>
+        <label className="field"><span>Your Name</span><input required minLength={2} maxLength={120} value={contactName} onChange={e => setContactName(e.target.value)} /></label>
+        <label className="field"><span>Email</span><input disabled value={session.user.email || ""} /></label>
+        <label className="field"><span>About your stable (optional)</span><textarea value={message} onChange={e => setMessage(e.target.value)} /></label>
+        <button className="primary full" disabled={busy}>{busy ? "Submitting..." : "Submit Application"}</button>
+      </form>
+    </>}
+    {error && <p role="alert" className="login-message">{error}</p>}
+    <button className="text onboarding-logout" onClick={() => supabase.auth.signOut()}>Log out</button>
+  </section></main>;
+}
 
 function PasswordResetForm({ onDone, setToast }) {
   const [password, setPassword] = useState("");
@@ -479,6 +467,7 @@ function Landing({ setEntry, previewContent = null }) {
         <button className="ghost dark" onClick={() => setEntry("stableLogin")}>{content.nav_stable_login}</button>
         <button className="ghost dark" onClick={() => setEntry("ownerLogin")}>{content.nav_owner_login}</button>
         <button className="primary light" onClick={() => setEntry("invite")}>{content.nav_invite_signup}</button>
+        <button className="ghost dark" onClick={() => setEntry("apply")}>Create a Stable</button>
       </div>
     </header>
     <section className="hero">
@@ -851,6 +840,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>}
 
+      {!ownerMode && isWebsiteAdmin && <StableApplicationsAdmin setToast={setToast} />}
       {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
 
       <article className="settings-card">
@@ -871,6 +861,50 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>
     </section>
   </main>;
+}
+
+function StableApplicationsAdmin({ setToast }) {
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.from("stable_applications")
+      .select("id,applicant_id,stable_name,contact_name,contact_email,message,status,created_at,review_notes")
+      .order("created_at", { ascending: false });
+    setLoading(false);
+    if (error) setToast(`Applications: ${error.message}`);
+    else setApplications(data || []);
+  }
+  useEffect(() => { load(); }, []);
+  async function review(item, action) {
+    if (!window.confirm(`${action === "approve" ? "Approve" : "Reject"} ${item.stable_name}?`)) return;
+    const reason = action === "reject" ? window.prompt("Optional rejection reason:", "") : null;
+    if (action === "reject" && reason === null) return;
+    setBusyId(item.id);
+    const { error } = action === "approve"
+      ? await supabase.rpc("approve_stable_application", { p_application_id: item.id })
+      : await supabase.rpc("reject_stable_application", { p_application_id: item.id, p_reason: reason || null });
+    setBusyId(null);
+    if (error) setToast(error.message);
+    else { setToast(`Application ${action === "approve" ? "approved" : "rejected"}.`); await load(); }
+  }
+  return <article className="settings-card" style={{ gridColumn: "1 / -1" }}>
+    <h3>Stable Applications</h3><p>Only website administrators can review applications.</p>
+    <button type="button" className="ghost" onClick={load}>Refresh Applications</button>
+    {loading ? <p>Loading applications...</p> : !applications.length ? <p>No applications yet.</p> :
+      applications.map(item => <div key={item.id} style={{ borderTop: "1px solid #ddd", padding: "16px 0" }}>
+        <strong>{item.stable_name}</strong> — {item.status}<br />
+        <span>{item.contact_name} · {item.contact_email}</span><br />
+        <small>{new Date(item.created_at).toLocaleString()}</small>
+        {item.message && <p>{item.message}</p>}
+        {item.review_notes && <p>Review notes: {item.review_notes}</p>}
+        {item.status === "pending" && <div className="settings-actions">
+          <button className="primary" type="button" disabled={!!busyId} onClick={() => review(item, "approve")}>Approve</button>
+          <button className="ghost" type="button" disabled={!!busyId} onClick={() => review(item, "reject")}>Reject</button>
+        </div>}
+      </div>)}
+  </article>;
 }
 
 const editableWebsiteFields = [
