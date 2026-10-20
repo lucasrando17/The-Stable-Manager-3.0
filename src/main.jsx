@@ -253,9 +253,9 @@ function App() {
     </header>
     {!isSuperAdmin && (profile.role === "owner" || loginMode === "owner")
       ? <OwnerApp profile={profile} tab={tab} setTab={setTab} setToast={setToast} stable={stable} setStable={setStable} setProfile={setProfile} />
-      : isSuperAdmin && tab === "siteAdmin" ? <><nav className="nav"><NavButton active={false} onClick={() => setTab("dashboard")} icon={Home} label="Stable Dashboard" /><NavButton active={true} onClick={() => setTab("siteAdmin")} icon={ShieldCheck} label="Site Administration" /></nav><SiteAdministration setToast={setToast} /></>
+      : isSuperAdmin && tab === "siteAdmin" ? <><nav className="nav"><NavButton active={false} onClick={() => setTab("dashboard")} icon={Home} label="Stable Dashboard" /><NavButton active={true} onClick={() => setTab("siteAdmin")} icon={ShieldCheck} label="Site Administration" /></nav><SiteAdministration setToast={setToast} onStableDeleted={async deletedId => { const { data, error } = await supabase.from("stables").select("*").order("name"); if (error) { setToast(`Unable to refresh stable list: ${error.message}`); return; } const rows = data || []; setAllStables(rows); setSelectedStableId(current => current === deletedId || !rows.some(st => st.id === current) ? (rows[0]?.id || "") : current); }} /></>
       : activeStableId ? <StableApp key={activeStableId} profile={activeProfile} isSuperAdmin={isSuperAdmin} tab={tab} setTab={setTab} setToast={setToast} stable={activeStable} setStable={setStable} setProfile={setProfile} />
-      : <main className="page"><section className="card">No stables are available to manage.</section></main>}
+      : isSuperAdmin ? <><nav className="nav"><NavButton active={false} onClick={() => setTab("dashboard")} icon={Home} label="Stable Dashboard"/><NavButton active={false} onClick={() => setTab("siteAdmin")} icon={ShieldCheck} label="Site Administration"/></nav><main className="page"><section className="card">No stables are available. Open Site Administration to manage applications or the website.</section></main></> : <main className="page"><section className="card">No stables are available to manage.</section></main>}
   </div>;
 }
 
@@ -886,7 +886,7 @@ function InviteSignup({ onBack, setToast }) {
 }
 
 // Super Admin navigation lives outside individual stable settings.
-function SiteAdministration({ setToast }) {
+function SiteAdministration({ setToast, onStableDeleted }) {
   const [section, setSection] = useState("applications");
   return <main className="page site-admin-page">
     <section className="module-header"><div className="module-icon"><ShieldCheck size={24}/></div>
@@ -895,12 +895,69 @@ function SiteAdministration({ setToast }) {
     </section>
     <div className="site-admin-tabs" role="tablist" aria-label="Site administration sections">
       <button type="button" role="tab" aria-selected={section === "applications"} className={section === "applications" ? "active" : ""} onClick={() => setSection("applications")}><ClipboardList size={18}/> Stable Applications</button>
+      <button type="button" role="tab" aria-selected={section === "stables"} className={section === "stables" ? "active" : ""} onClick={() => setSection("stables")}><Building2 size={18}/> Stable Management</button>
       <button type="button" role="tab" aria-selected={section === "website"} className={section === "website" ? "active" : ""} onClick={() => setSection("website")}><Edit3 size={18}/> Website Editor</button>
     </div>
     <div className="site-admin-content" role="tabpanel">
-      {section === "applications" ? <StableApplicationsAdmin setToast={setToast}/> : <WebsiteEditor setToast={setToast}/>}
+      {section === "applications" ? <StableApplicationsAdmin setToast={setToast}/> : section === "stables" ? <SuperAdminStableManagement setToast={setToast} onStableDeleted={onStableDeleted}/> : <WebsiteEditor setToast={setToast}/>} 
     </div>
   </main>;
+}
+
+function SuperAdminStableManagement({ setToast, onStableDeleted }) {
+  const [stables, setStables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [target, setTarget] = useState(null);
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function refresh() {
+    setLoading(true);
+    const { data, error: loadError } = await supabase.from("stables").select("id,name").order("name");
+    setLoading(false);
+    setError(loadError?.message || "");
+    if (!loadError) setStables(data || []);
+  }
+  useEffect(() => { refresh(); }, []);
+  async function deleteStable() {
+    if (!target || busy || confirmation !== target.name) return;
+    setBusy(true); setError("");
+    const { error: deleteError } = await supabase.rpc("super_admin_delete_stable", {
+      p_stable_id: target.id, p_confirm_name: confirmation
+    });
+    setBusy(false);
+    if (deleteError) { setError(deleteError.message); return; }
+    const removedId = target.id;
+    setTarget(null); setConfirmation("");
+    setToast("Stable permanently deleted. Member logins were retained.");
+    await refresh();
+    await onStableDeleted?.(removedId);
+  }
+  return <section className="settings-card" style={{maxWidth:920,margin:"0 auto"}}>
+    <h3>Stable Management</h3>
+    <p>Manage registered stables. Permanent deletion is restricted to Super Administrators.</p>
+    <button type="button" className="ghost" onClick={refresh} disabled={loading || busy}>Refresh stables</button>
+    {error && <p role="alert" style={{color:"#b42318",marginTop:12}}>{error}</p>}
+    {loading ? <p>Loading stables...</p> : !stables.length ? <p>No registered stables.</p> : stables.map(st =>
+      <div key={st.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",padding:"18px 0",borderBottom:"1px solid #dbe3ef"}}>
+        <div><strong>{st.name}</strong><div className="muted" style={{fontSize:12}}>{st.id}</div></div>
+        <button type="button" className="ghost" disabled={busy} onClick={() => {setTarget(st);setConfirmation("");setError("");}}><Trash2 size={16}/> Delete stable</button>
+      </div>
+    )}
+    {target && <div role="dialog" aria-modal="true" aria-label="Confirm permanent stable deletion" style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(9,16,36,.78)",display:"grid",placeItems:"center",padding:18}}>
+      <div style={{width:"100%",maxWidth:510,background:"#fff",color:"#111827",borderRadius:18,padding:28,boxShadow:"0 24px 80px rgba(0,0,0,.3)"}}>
+        <h2 style={{marginTop:0}}>Permanently delete {target.name}?</h2>
+        <p>This cannot be undone. All stable-linked horses, work, races, invoices, financial records, owner portal records and other stable data will be deleted. Members will lose access, but their login accounts and personal profiles will remain.</p>
+        <p>Type <strong>{target.name}</strong> exactly to confirm:</p>
+        <input autoFocus aria-label="Type stable name to confirm deletion" style={{width:"100%",padding:12,marginBottom:18}} value={confirmation} onChange={e=>setConfirmation(e.target.value)} disabled={busy}/>
+        {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
+        <div style={{display:"flex",gap:12,justifyContent:"flex-end",flexWrap:"wrap"}}>
+          <button type="button" className="ghost" disabled={busy} onClick={()=>{setTarget(null);setConfirmation("");setError("");}}>Cancel</button>
+          <button type="button" disabled={busy || confirmation !== target.name} onClick={deleteStable} style={{background:confirmation === target.name ? "#b42318" : "#a5a5a5",color:"white",border:0,borderRadius:9,padding:"12px 18px",cursor:confirmation === target.name ? "pointer" : "not-allowed"}}>{busy ? "Deleting..." : "Permanently delete stable"}</button>
+        </div>
+      </div>
+    </div>}
+  </section>;
 }
 
 function StableSwitcher({ stables, selectedId, onSelect }) {
