@@ -188,7 +188,21 @@ function App() {
       supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).maybeSingle(),
       supabase.from("website_admins").select("user_id").eq("user_id", session.user.id).maybeSingle()
     ]);
-    const { data, error } = profileResult;
+    let { data, error } = profileResult;
+    // A failed embedded stable join must not erase an otherwise valid membership.
+    if (error || !data) {
+      const fallback = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+      if (!fallback.error && fallback.data) {
+        data = fallback.data;
+        error = null;
+        if (data.stable_id) {
+          const stableLookup = await supabase.from("stables").select("*").eq("id", data.stable_id).maybeSingle();
+          data = { ...data, stables: stableLookup.data || null };
+        }
+      } else if (fallback.error) {
+        error = fallback.error;
+      }
+    }
     const superAdmin = !adminResult.error && !!adminResult.data;
     setIsSuperAdmin(superAdmin);
     if (superAdmin) {
@@ -203,7 +217,7 @@ function App() {
     }
 
     if (error) {
-      setToast("Login works, but profile setup needs to be completed.");
+      setToast(`Unable to load your account: ${error.message}`);
       setProfile({ id: session.user.id, email: session.user.email, role: "admin", stable_id: null, stables: null });
       setStable(null);
       return;
@@ -548,6 +562,27 @@ function StableApplicationOnboarding({ session, refreshProfile }) {
   const [stableName, setStableName] = useState("");
   const [contactName, setContactName] = useState(session.user.user_metadata?.invited_full_name || "");
   const [message, setMessage] = useState("");
+  async function enterApprovedStable() {
+    setBusy(true);
+    setError("");
+    try {
+      const { data: account, error: accountError } = await supabase.from("profiles")
+        .select("id,stable_id,role").eq("id", session.user.id).maybeSingle();
+      if (accountError) throw accountError;
+      if (!account?.stable_id) {
+        throw new Error("Your application is approved, but your account is not linked to a stable. Please contact the site administrator.");
+      }
+      const { data: assigned, error: stableError } = await supabase.from("stables")
+        .select("id,name").eq("id", account.stable_id).maybeSingle();
+      if (stableError) throw stableError;
+      if (!assigned) throw new Error("Your stable could not be accessed. Please contact the site administrator.");
+      refreshProfile();
+    } catch (err) {
+      setError(err.message || "Unable to open your stable. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function load() {
     setChecking(true);
     const { data, error: queryError } = await supabase.from("stable_applications")
@@ -582,7 +617,7 @@ function StableApplicationOnboarding({ session, refreshProfile }) {
       <button type="button" style={onboard.button} onClick={load}>Check application status <ArrowRight size={17}/></button>
     </> : application?.status === "approved" ? <>
       <div style={{textAlign:"center",padding:"12px 0 20px"}}><CheckCircle2 size={54} color="#15803d"/><p style={onboard.eyebrow}>APPLICATION APPROVED</p><h1 style={onboard.title}>Welcome to your stable.</h1><p style={onboard.subtitle}>Your application has been approved. You're ready to get started.</p></div>
-      <button type="button" style={onboard.button} onClick={refreshProfile}>Enter your stable <ArrowRight size={17}/></button>
+      <button type="button" style={onboard.button} disabled={busy} onClick={enterApprovedStable}>{busy ? "Opening your stable..." : "Enter your stable"} <ArrowRight size={17}/></button>
     </> : <>
       <p style={onboard.eyebrow}>NEW STABLE REGISTRATION</p>
       <h1 style={onboard.title}>Let's get your stable set up.</h1>
