@@ -1,3 +1,4 @@
+```
 // COMPLETE FINAL REBUILD V13
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -361,27 +362,38 @@ const landingDefaults = {
 
 function useSiteSettings() {
   const [content, setContent] = useState(landingDefaults);
+  const [settingsError, setSettingsError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
+
   useEffect(() => {
     let active = true;
-    supabase.from("site_settings").select("key,value").then(({ data, error }) => {
+    async function loadSettings() {
+      setSettingsError("");
+      const { data, error } = await supabase.from("site_settings").select("key,value");
       if (!active) return;
       if (error) {
-        console.error("Unable to load website settings:", error.message);
+        console.error("Public website settings could not load:", error);
+        setSettingsError(`Website settings could not load: ${error.message}`);
         return;
       }
-      const settings = Object.fromEntries((data || []).map(({ key, value }) => [key, value]));
-      // Empty settings should not erase working defaults.
+      if (!data || data.length === 0) {
+        setSettingsError("No published website settings were returned. Check the public SELECT policy and the Vercel Supabase environment variables.");
+        return;
+      }
+      const settings = Object.fromEntries(data.map(({ key, value }) => [key, value]));
       setContent({ ...landingDefaults, ...Object.fromEntries(
         Object.entries(settings).filter(([, value]) => value !== null && value !== "")
       ) });
-    });
+    }
+    loadSettings();
     return () => { active = false; };
-  }, []);
-  return content;
+  }, [retryCount]);
+
+  return { content, settingsError, retrySettings: () => setRetryCount(count => count + 1) };
 }
 
 function Landing({ setEntry, previewContent = null }) {
-  const liveContent = useSiteSettings();
+  const { content: liveContent, settingsError, retrySettings } = useSiteSettings();
   const content = previewContent || liveContent;
   const features = ["operations", "owners", "calendar", "invoices", "analytics", "media"];
 
@@ -390,6 +402,10 @@ function Landing({ setEntry, previewContent = null }) {
     "--site-accent": content.brand_accent_color
   }}>
     <PhotoReel backgroundUrl={content.hero_background_url} />
+    {!previewContent && settingsError && <div role="alert" style={{ position: "relative", zIndex: 20, background: "#fff4e5", color: "#542b00", padding: "12px 18px", fontSize: 14 }}>
+      <strong>Website configuration issue:</strong> {settingsError}{" "}
+      <button type="button" onClick={retrySettings} style={{ marginLeft: 12, cursor: "pointer" }}>Retry loading</button>
+    </div>}
     <header className="landing-nav">
       <strong>{content.site_logo_url
         ? <img src={content.site_logo_url} alt={content.site_name} style={{ maxHeight: 44, maxWidth: 220, objectFit: "contain" }} />
@@ -430,7 +446,7 @@ function PhotoReel({ backgroundUrl = "" }) {
 }
 
 function Login({ mode, onBack, setLoginMode }) {
-  const content = useSiteSettings();
+  const { content } = useSiteSettings();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -1831,3 +1847,4 @@ function formatValue(value) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
+```
