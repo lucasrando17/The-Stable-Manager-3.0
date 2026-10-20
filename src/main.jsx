@@ -89,6 +89,7 @@ function App() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -114,6 +115,16 @@ function App() {
   }, [toast]);
 
   async function loadProfile() {
+    const pendingCode = session.user.user_metadata?.stable_invite_code;
+    if (pendingCode && session.user.email_confirmed_at) {
+      const { error: redemptionError } = await supabase.rpc("redeem_stable_invite");
+      if (redemptionError) {
+        setInviteStatus(redemptionError.message);
+        console.error("Invitation redemption failed:", redemptionError);
+      } else {
+        setInviteStatus("");
+      }
+    }
     const { data, error } = await supabase.from("profiles").select("*, stables(*)").eq("id", session.user.id).maybeSingle();
 
     if (error) {
@@ -143,6 +154,10 @@ function App() {
 
   if (!profile) {
     return <main className="page"><section className="card"><h2>Loading profile...</h2><p>Please wait while your account is checked.</p></section></main>;
+  }
+
+  if (!profile.stable_id && inviteStatus) {
+    return <main className="page"><section className="card"><h2>Invitation needs attention</h2><p>{inviteStatus}</p><p>Please contact your stable administrator for a new invitation if necessary.</p><button className="ghost" onClick={() => supabase.auth.signOut()}>Log out</button></section></main>;
   }
 
   if (!profile.stable_id) {
@@ -525,27 +540,32 @@ function InviteSignup({ onBack, setToast }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+
   async function submit(event) {
     event.preventDefault();
-    const { data: invite, error: inviteError } = await supabase.from("invite_codes").select("*").eq("code", code.trim()).is("used_by", null).single();
-    if (inviteError || !invite) {
-      setToast("Invalid or used invite code.");
+    setMessage("");
+    const trimmedCode = code.trim();
+    if (!trimmedCode || !fullName.trim() || !email.trim() || password.length < 8) {
+      setMessage("Enter an invitation code, name, email and a password of at least 8 characters.");
       return;
     }
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    setSubmitting(true);
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: { stable_invite_code: trimmedCode, invited_full_name: fullName.trim() }
+      }
+    });
+    setSubmitting(false);
     if (error) {
-      setToast(error.message);
+      setMessage(error.message);
       return;
     }
-    const userId = data.user?.id;
-    if (!userId) {
-      setToast("Account created. Check email confirmation.");
-      return;
-    }
-    await supabase.from("profiles").insert({ id: userId, stable_id: invite.stable_id, role: invite.role, full_name: fullName, owner_name: invite.owner_name || fullName });
-    await supabase.from("invite_codes").update({ used_by: userId, used_at: new Date().toISOString() }).eq("id", invite.id);
-    setToast("Account created. Log in now.");
-    onBack();
+    setMessage("Check your email and confirm your account. After confirmation, sign in to complete your invitation.");
   }
 
   return <main className="login-screen">
@@ -558,8 +578,9 @@ function InviteSignup({ onBack, setToast }) {
         <label>Full Name<input value={fullName} onChange={e => setFullName(e.target.value)} /></label>
         <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
-        <button className="primary full">Create Account</button>
+        <button className="primary full" disabled={submitting}>{submitting ? "Creating account..." : "Create Account"}</button>
       </form>
+      {message && <p className="login-message" role="status">{message}</p>}
     </section>
   </main>;
 }
