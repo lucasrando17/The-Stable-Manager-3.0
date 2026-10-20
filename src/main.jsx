@@ -184,7 +184,6 @@ function App() {
 function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
   const [stableName, setStableName] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("admin");
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
 
@@ -218,7 +217,7 @@ function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
     const profilePayload = {
       id: session.user.id,
       stable_id: stableRow.id,
-      role,
+      role: "admin",
       full_name: fullName.trim(),
       owner_name: fullName.trim()
     };
@@ -266,14 +265,6 @@ function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
           <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Example: Lucas Rando" />
         </label>
 
-        <label className="field">
-          <span>Your Role</span>
-          <select value={role} onChange={e => setRole(e.target.value)}>
-            <option value="admin">Admin / Head Trainer</option>
-            <option value="trainer">Trainer</option>
-            <option value="staff">Staff</option>
-          </select>
-        </label>
 
         <button className="primary full" disabled={saving}>{saving ? "Creating stable..." : "Create Stable"}</button>
       </form>}
@@ -294,6 +285,7 @@ function CreateStableOnboarding({ session, setProfile, setStable, setToast }) {
 function PasswordResetForm({ onDone, setToast }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
 
   async function submit(event) {
@@ -332,8 +324,9 @@ function PasswordResetForm({ onDone, setToast }) {
       <h1>Reset Password</h1>
       <p>Create a new password for your account.</p>
       <form onSubmit={submit}>
-        <label>New Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
-        <label>Confirm New Password<input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
+        <label>New Password<input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label>Confirm New Password<input type={showPassword ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} /> Show passwords</label>
         <button className="primary full">Update Password</button>
       </form>
       {message && <p className="login-message">{message}</p>}
@@ -484,6 +477,7 @@ function Login({ mode, onBack, setLoginMode }) {
   const { content } = useSiteSettings();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
 
   async function submit(event) {
@@ -520,7 +514,8 @@ function Login({ mode, onBack, setLoginMode }) {
 
       <form onSubmit={submit}>
         <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
-        <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label>Password<input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} /> Show password</label>
         <button className="primary full">Login</button>
       </form>
 
@@ -539,6 +534,8 @@ function InviteSignup({ onBack, setToast }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -549,6 +546,10 @@ function InviteSignup({ onBack, setToast }) {
     const trimmedCode = code.trim();
     if (!trimmedCode || !fullName.trim() || !email.trim() || password.length < 8) {
       setMessage("Enter an invitation code, name, email and a password of at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
       return;
     }
     setSubmitting(true);
@@ -577,7 +578,9 @@ function InviteSignup({ onBack, setToast }) {
         <label>Invite Code<input value={code} onChange={e => setCode(e.target.value)} /></label>
         <label>Full Name<input value={fullName} onChange={e => setFullName(e.target.value)} /></label>
         <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
-        <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label>Password<input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label>Confirm Password<input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} /> Show passwords</label>
         <button className="primary full" disabled={submitting}>{submitting ? "Creating account..." : "Create Account"}</button>
       </form>
       {message && <p className="login-message" role="status">{message}</p>}
@@ -596,12 +599,12 @@ function StableApp({ profile, tab, setTab, setToast, stable, setStable, setProfi
       {financeRoles.includes(profile.role) && <NavButton active={tab === "invoices"} onClick={() => setTab("invoices")} icon={FileText} label="Invoices" />}
       <NavButton active={tab === "settings"} onClick={() => setTab("settings")} icon={Settings} label="Settings" />
     </nav>
-    {tab === "dashboard" && <Dashboard stableId={profile.stable_id} setTab={setTab} />}
+    {tab === "dashboard" && <Dashboard stableId={profile.stable_id} setTab={setTab} role={profile.role} />}
     {tab === "updates" && <UpdatesPanel stableId={profile.stable_id} setToast={setToast} />}
-    {tab === "analytics" && <Analytics stableId={profile.stable_id} />}
+    {tab === "analytics" && <Analytics stableId={profile.stable_id} role={profile.role} />}
     {tab === "invoices" && financeRoles.includes(profile.role) && <Invoices stableId={profile.stable_id} setToast={setToast} />}
     {tab === "settings" && <SettingsPanel profile={profile} stable={stable} setStable={setStable} setProfile={setProfile} setToast={setToast} />}
-    {moduleDefs[tab] && <GenericTable stableId={profile.stable_id} config={moduleDefs[tab]} setToast={setToast} />}
+    {moduleDefs[tab] && !hidden.includes(tab) && <GenericTable stableId={profile.stable_id} config={moduleDefs[tab]} setToast={setToast} role={profile.role} />}
   </>;
 }
 
@@ -752,7 +755,7 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
         </form>
       </article>
 
-      {!ownerMode && <article className="settings-card">
+      {!ownerMode && profile.role === "admin" && <article className="settings-card">
         <h3>Stable</h3>
         <p>Basic stable identity and branding. Logo upload can be added next.</p>
         <form className="form-grid" onSubmit={saveStable}>
@@ -761,8 +764,6 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
           <button className="primary full" disabled={saving}>{saving ? "Saving..." : "Save Stable"}</button>
         </form>
       </article>}
-
-      {!ownerMode && profile.role === "admin" && <InvitationsPanel stableId={profile.stable_id} setToast={setToast} />}
 
       {!ownerMode && isWebsiteAdmin && <WebsiteEditor setToast={setToast} />}
 
@@ -784,101 +785,6 @@ function SettingsPanel({ profile, stable, setStable, setProfile, setToast, owner
       </article>
     </section>
   </main>;
-}
-
-function InvitationsPanel({ stableId, setToast }) {
-  const [invites, setInvites] = useState([]);
-  const [role, setRole] = useState("staff");
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [newCode, setNewCode] = useState("");
-
-  async function loadInvites() {
-    if (!stableId) return;
-    setLoading(true);
-    const { data, error: loadError } = await supabase.from("invite_codes")
-      .select("id,code,role,email,created_at,expires_at,used_at,used_by")
-      .eq("stable_id", stableId).order("created_at", { ascending: false }).limit(100);
-    setLoading(false);
-    if (loadError) setError(loadError.message);
-    else { setInvites(data || []); setError(""); }
-  }
-
-  useEffect(() => { loadInvites(); }, [stableId]);
-
-  async function generateInvite(event) {
-    event.preventDefault();
-    if (!stableId || busy) return;
-    setBusy(true);
-    setError("");
-    setNewCode("");
-    const { data, error: rpcError } = await supabase.rpc("create_stable_invite", {
-      p_stable_id: stableId, p_role: role, p_email: email.trim() || null
-    });
-    setBusy(false);
-    if (rpcError) { setError(rpcError.message); return; }
-    setNewCode(data);
-    setEmail("");
-    setToast("Invitation code created.");
-    await loadInvites();
-  }
-
-  async function revokeInvite(invite) {
-    if (!window.confirm("Revoke this invitation? It will no longer be valid.")) return;
-    setBusy(true);
-    const { error: rpcError } = await supabase.rpc("revoke_stable_invite", { p_invite_id: invite.id });
-    setBusy(false);
-    if (rpcError) { setError(rpcError.message); return; }
-    if (newCode === invite.code) setNewCode("");
-    setToast("Invitation revoked.");
-    await loadInvites();
-  }
-
-  const status = invite => invite.used_at || invite.used_by ? "Used"
-    : invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now() ? "Expired" : "Active";
-
-  return <article className="settings-card" style={{ gridColumn: "1 / -1" }}>
-    <h3>Stable Invitations</h3>
-    <p>Generate an invitation for someone joining this stable. Share the code privately; they can enter it under “Join With Invite Code” on the homepage.</p>
-    <form className="form-grid" onSubmit={generateInvite}>
-      <label className="field"><span>Account access</span>
-        <select value={role} onChange={e => setRole(e.target.value)}>
-          <option value="staff">Staff</option>
-          <option value="trainer">Trainer</option>
-          <option value="owner">Owner</option>
-          <option value="admin">Stable administrator (full access)</option>
-        </select>
-      </label>
-      <label className="field"><span>Recipient email (optional)</span>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="person@example.com" />
-      </label>
-      <button type="submit" className="primary full" disabled={busy || !stableId}>{busy ? "Working..." : "Generate Invite Code"}</button>
-    </form>
-    {newCode && <div style={{ marginTop: 16, padding: 16, border: "1px solid #cbd5e1", borderRadius: 12 }}>
-      <strong>New invitation code</strong>
-      <p style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, overflowWrap: "anywhere" }}>{newCode}</p>
-      <button type="button" className="ghost" onClick={async () => {
-        try { await navigator.clipboard.writeText(newCode); setToast("Code copied."); }
-        catch { setToast("Copy the code shown above manually."); }
-      }}>Copy Code</button>
-      <p>This code expires in 7 days and can only be used once. The recipient must confirm their email before joining.</p>
-    </div>}
-    {error && <p role="alert" style={{ color: "#b91c1c", overflowWrap: "anywhere" }}>{error}</p>}
-    <h4 style={{ marginTop: 24 }}>Recent invitations</h4>
-    {loading ? <p>Loading invitations...</p> : invites.length === 0 ? <p>No invitations created yet.</p> :
-      <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-        <thead><tr><th>Code</th><th>Role</th><th>Email</th><th>Status</th><th>Expires</th><th>Action</th></tr></thead>
-        <tbody>{invites.map(invite => <tr key={invite.id}>
-          <td style={{ padding: "10px 6px", fontFamily: "monospace" }}>{invite.code}</td>
-          <td>{invite.role}</td><td>{invite.email || "Any email"}</td>
-          <td>{status(invite)}</td>
-          <td>{invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : "Never"}</td>
-          <td>{status(invite) === "Active" && <button type="button" className="ghost" disabled={busy} onClick={() => revokeInvite(invite)}>Revoke</button>}</td>
-        </tr>)}</tbody>
-      </table></div>}
-  </article>;
 }
 
 const editableWebsiteFields = [
@@ -1043,7 +949,7 @@ function WebsiteEditor({ setToast }) {
   </article>;
 }
 
-function Dashboard({ stableId, setTab }) {
+function Dashboard({ stableId, setTab, role }) {
   const [counts, setCounts] = useState({});
   useEffect(() => { if (stableId) load(); }, [stableId]);
 
@@ -1054,7 +960,7 @@ function Dashboard({ stableId, setTab }) {
 
   async function load() {
     const [horses, work, owners, races, invoices] = await Promise.all([
-      count("horses"), count("work_entries"), count("owners"), count("race_records"), count("invoices")
+      count("horses"), count("work_entries"), count("owners"), count("race_records"), financeRoles.includes(role) ? count("invoices") : Promise.resolve(0)
     ]);
     setCounts({ horses, work, owners, races, invoices });
   }
@@ -1068,15 +974,16 @@ function Dashboard({ stableId, setTab }) {
       <Stat icon={ClipboardList} label="Work" value={counts.work || 0} />
       <Stat icon={Users} label="Owners" value={counts.owners || 0} />
       <Stat icon={Trophy} label="Races" value={counts.races || 0} />
-      <Stat icon={FileText} label="Invoices" value={counts.invoices || 0} />
+      {financeRoles.includes(role) && <Stat icon={FileText} label="Invoices" value={counts.invoices || 0} />}
     </section>
     <section className="quick-grid">
-      {["horses","owners","work","racing","treatments","farrier","feed","gear","updates","analytics","invoices"].map(key => <button className="quick" key={key} onClick={() => setTab(key)}>{key}<ChevronRight size={18}/></button>)}
+      {["horses","owners","work","racing","treatments","farrier","feed","gear","updates","analytics",...(financeRoles.includes(role) ? ["invoices"] : [])].map(key => <button className="quick" key={key} onClick={() => setTab(key)}>{key}<ChevronRight size={18}/></button>)}
     </section>
   </main>;
 }
 
-function GenericTable({ stableId, config, setToast }) {
+function GenericTable({ stableId, config, setToast, role = "staff" }) {
+  const canEdit = config.table !== "owners" || financeRoles.includes(role);
   const [rows, setRows] = useState([]);
   const [horses, setHorses] = useState([]);
   const [owners, setOwners] = useState([]);
@@ -1112,6 +1019,7 @@ function GenericTable({ stableId, config, setToast }) {
   }
 
   async function save(record, mode) {
+    if (!canEdit) { setToast("You do not have permission to edit owners."); return; }
     const clean = { ...record, stable_id: stableId };
     config.fields.forEach(([key, _label, type]) => {
       if (type === "number") clean[key] = clean[key] === "" ? 0 : Number(clean[key]);
@@ -1130,8 +1038,10 @@ function GenericTable({ stableId, config, setToast }) {
   }
 
   async function remove(id) {
-    await supabase.from(config.table).delete().eq("id", id).eq("stable_id", stableId);
-    load();
+    if (!canEdit) { setToast("You do not have permission to delete owners."); return; }
+    const { error } = await supabase.from(config.table).delete().eq("id", id).eq("stable_id", stableId);
+    if (error) setToast(error.message);
+    else load();
   }
 
   const filtered = rows.filter(row => JSON.stringify(row).toLowerCase().includes(search.toLowerCase()));
@@ -1143,24 +1053,24 @@ function GenericTable({ stableId, config, setToast }) {
     <section className="toolbar">
       <div className="search-box"><Search size={18}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${config.title}`} /></div>
       {config.calendarField && <button className="ghost" onClick={() => setCalendar(!calendar)}><Calendar size={18}/>{calendar ? "Card View" : "Calendar"}</button>}
-      <button className="primary" onClick={() => setModal({ mode: "add", record: blank() })}><Plus size={18}/>Add</button>
+      {canEdit && <button className="primary" onClick={() => setModal({ mode: "add", record: blank() })}><Plus size={18}/>Add</button>}
     </section>
     {calendar && config.calendarField && <PhoneCalendar rows={rows} dateField={config.calendarField} selectedDate={selectedDate} setSelectedDate={setSelectedDate} title={config.title} />}
     <section className="grid">
       <CollapsibleRecords rows={shown} threshold={config.table === "work_entries" ? 12 : 999999} render={row => <article className="record clickable" key={row.id} onClick={() => config.profile === "horse" ? setModal({ mode: "horseProfile", record: row }) : config.profile === "owner" ? setModal({ mode: "ownerProfile", record: row }) : null}>
         <div className="record-head">
           <div><h3>{row.name || row.horse_name || row.item_name || row.full_name || row.date || row.entry_date || "Record"}</h3><p>{row.status || row.category || row.role || ""}</p></div>
-          <div className="button-row" onClick={e => e.stopPropagation()}>
+          {canEdit && <div className="button-row" onClick={e => e.stopPropagation()}>
             <button className="edit" onClick={() => setModal({ mode: "edit", record: { ...row } })}><Edit3 size={16}/></button>
             <button className="delete" onClick={() => remove(row.id)}><Trash2 size={16}/></button>
-          </div>
+          </div>}
         </div>
         <div className="details">{config.display.map(key => <div key={key}><span>{labelize(key)}</span><strong>{formatValue(row[key])}</strong></div>)}</div>
       </article>} />
     </section>
-    {modal?.mode === "horseProfile" && <HorseProfile horse={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
-    {modal?.mode === "ownerProfile" && <OwnerProfile owner={modal.record} stableId={stableId} onClose={() => setModal(null)} />}
-    {modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} stableId={stableId} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
+    {modal?.mode === "horseProfile" && <HorseProfile horse={modal.record} stableId={stableId} role={role} onClose={() => setModal(null)} />}
+    {modal?.mode === "ownerProfile" && <OwnerProfile owner={modal.record} stableId={stableId} role={role} onClose={() => setModal(null)} />}
+    {canEdit && modal && ["add","edit"].includes(modal.mode) && <RecordModal title={`${modal.mode === "edit" ? "Edit" : "Add"} ${config.title}`} fields={config.fields} record={modal.record} horses={horses} owners={owners} stableId={stableId} onClose={() => setModal(null)} onSave={record => save(record, modal.mode)} />}
   </main>;
 }
 
@@ -1230,13 +1140,13 @@ function UpdatesPanel({ stableId, setToast }) {
   return <GenericTable stableId={stableId} config={config} setToast={setToast} />;
 }
 
-function Analytics({ stableId }) {
+function Analytics({ stableId, role }) {
   const [data, setData] = useState({ finance: [], work: [], races: [], horses: [] });
   useEffect(() => { if (stableId) load(); }, [stableId]);
 
   async function load() {
     const [finance, work, races, horses] = await Promise.all([
-      supabase.from("finance_entries").select("*").eq("stable_id", stableId),
+      financeRoles.includes(role) ? supabase.from("finance_entries").select("*").eq("stable_id", stableId) : Promise.resolve({ data: [] }),
       supabase.from("work_entries").select("*").eq("stable_id", stableId),
       supabase.from("race_records").select("*").eq("stable_id", stableId),
       supabase.from("horses").select("*").eq("stable_id", stableId)
@@ -1255,9 +1165,11 @@ function Analytics({ stableId }) {
   return <main className="page">
     <section className="module-header"><div className="module-icon"><BarChart3 size={24}/></div><h2>Analytics</h2></section>
     <section className="stats">
-      <Stat icon={DollarSign} label="Income" value={`$${income.toLocaleString()}`} />
-      <Stat icon={DollarSign} label="Expenses" value={`$${expenses.toLocaleString()}`} />
-      <Stat icon={BarChart3} label="Net" value={`$${(income - expenses).toLocaleString()}`} />
+      {financeRoles.includes(role) && <>
+        <Stat icon={DollarSign} label="Income" value={`$${income.toLocaleString()}`} />
+        <Stat icon={DollarSign} label="Expenses" value={`$${expenses.toLocaleString()}`} />
+        <Stat icon={BarChart3} label="Net" value={`$${(income - expenses).toLocaleString()}`} />
+      </>}
       <Stat icon={ClipboardList} label="Work" value={data.work.length} />
       <Stat icon={Trophy} label="Starts" value={completed.length} />
       <Stat icon={Trophy} label="Wins" value={wins} />
@@ -1468,7 +1380,8 @@ function InvoicePrint({ invoice, onClose }) {
   </div>;
 }
 
-function HorseProfile({ horse, stableId, onClose }) {
+function HorseProfile({ horse, stableId, role, onClose }) {
+  const canEditOwnership = financeRoles.includes(role);
   const [data, setData] = useState({ owners: [], work: [], races: [], vet: [], farrier: [], feed: [], gear: [], invoices: [] });
   useEffect(() => { load(); }, [horse.name]);
 
@@ -1481,12 +1394,13 @@ function HorseProfile({ horse, stableId, onClose }) {
       supabase.from("farrier_records").select("*").eq("stable_id", stableId).eq("horse_name", horse.name).order("farrier_date", { ascending: false }),
       supabase.from("feed_programs").select("*").eq("stable_id", stableId).eq("horse_name", horse.name),
       supabase.from("gear_items").select("*").eq("stable_id", stableId).eq("horse_name", horse.name),
-      supabase.from("invoices").select("*").eq("stable_id", stableId).eq("horse_name", horse.name)
+      financeRoles.includes(role) ? supabase.from("invoices").select("*").eq("stable_id", stableId).eq("horse_name", horse.name) : Promise.resolve({ data: [] })
     ]);
     setData({ owners: owners.data || [], work: work.data || [], races: races.data || [], vet: vet.data || [], farrier: farrier.data || [], feed: feed.data || [], gear: gear.data || [], invoices: invoices.data || [] });
   }
 
   async function addOwner() {
+    if (!canEditOwnership) return;
     const owner_name = prompt("Owner name");
     const percentage = prompt("Percentage owned");
     if (!owner_name || !percentage) return;
@@ -1495,6 +1409,7 @@ function HorseProfile({ horse, stableId, onClose }) {
   }
 
   async function deleteShare(id) {
+    if (!canEditOwnership) return;
     await supabase.from("horse_owners").delete().eq("id", id).eq("stable_id", stableId);
     load();
   }
@@ -1512,9 +1427,9 @@ function HorseProfile({ horse, stableId, onClose }) {
           <div><span>Trainer</span><strong>{horse.trainer || "-"}</strong></div>
         </div>
       </ProfileSection>
-      <button className="primary" onClick={addOwner}>Add Owner Share</button>
+      {canEditOwnership && <button className="primary" onClick={addOwner}>Add Owner Share</button>}
       <ProfileSection title="Owners">
-        {data.owners.map(row => <div className="profile-row" key={row.id}><span>{row.owner_name}</span><strong>{row.percentage}%</strong><button className="delete small" onClick={() => deleteShare(row.id)}><Trash2 size={14}/></button></div>)}
+        {data.owners.map(row => <div className="profile-row" key={row.id}><span>{row.owner_name}</span><strong>{row.percentage}%</strong>{canEditOwnership && <button className="delete small" onClick={() => deleteShare(row.id)}><Trash2 size={14}/></button>}</div>)}
       </ProfileSection>
       <ProfileSection title="Work"><CollapsibleList rows={data.work} threshold={8} render={row => <SimpleRow key={row.id} left={`${row.date} · ${row.sector}`} right={`Overall: ${row.overall_time || "-"} · Mile: ${row.mile_rate || "-"}`} />} /></ProfileSection>
       <ProfileSection title="Races">{data.races.map(row => <SimpleRow key={row.id} left={`${row.date} · ${row.track} · ${row.status}`} right={row.result || `$${row.prizemoney || 0}`} />)}</ProfileSection>
@@ -1522,12 +1437,12 @@ function HorseProfile({ horse, stableId, onClose }) {
       <ProfileSection title="Farrier">{data.farrier.map(row => <SimpleRow key={row.id} left={`${row.farrier_date} · ${row.service_type}`} right={`$${row.bill_amount || 0}`} />)}</ProfileSection>
       <ProfileSection title="Feed">{data.feed.map(row => <SimpleRow key={row.id} left={row.morning_feed || row.night_feed || "Feed record"} right={row.supplements || ""} />)}</ProfileSection>
       <ProfileSection title="Gear">{data.gear.map(row => <SimpleRow key={row.id} left={`${row.item_name} · ${row.category}`} right={row.condition || ""} />)}</ProfileSection>
-      <ProfileSection title="Bills">{data.invoices.map(row => <SimpleRow key={row.id} left={row.invoice_number} right={`$${row.total || 0}`} />)}</ProfileSection>
+      {financeRoles.includes(role) && <ProfileSection title="Bills">{data.invoices.map(row => <SimpleRow key={row.id} left={row.invoice_number} right={`$${row.total || 0}`} />)}</ProfileSection>}
     </section>
   </div>;
 }
 
-function OwnerProfile({ owner, stableId, onClose }) {
+function OwnerProfile({ owner, stableId, role, onClose }) {
   const [shares, setShares] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [updates, setUpdates] = useState([]);
@@ -1543,15 +1458,17 @@ function OwnerProfile({ owner, stableId, onClose }) {
       const updateResult = await supabase.from("updates").select("*").eq("stable_id", stableId).in("horse_name", horseNames);
       setUpdates(updateResult.data || []);
     }
-    const invoiceResult = await supabase.from("invoices").select("*").eq("stable_id", stableId).eq("client_name", owner.name);
-    setInvoices(invoiceResult.data || []);
+    if (financeRoles.includes(role)) {
+      const invoiceResult = await supabase.from("invoices").select("*").eq("stable_id", stableId).eq("client_name", owner.name);
+      setInvoices(invoiceResult.data || []);
+    } else setInvoices([]);
   }
 
   return <div className="modal-backdrop">
     <section className="modal">
       <div className="modal-head"><h2>{owner.name}</h2><button onClick={onClose}><X size={20}/></button></div>
       <ProfileSection title="Horses Owned">{shares.map(row => <SimpleRow key={row.id} left={row.horse_name} right={`${row.percentage}%`} />)}</ProfileSection>
-      <ProfileSection title="Invoices">{invoices.map(row => <SimpleRow key={row.id} left={row.invoice_number} right={`$${row.total || 0}`} />)}</ProfileSection>
+      {financeRoles.includes(role) && <ProfileSection title="Invoices">{invoices.map(row => <SimpleRow key={row.id} left={row.invoice_number} right={`$${row.total || 0}`} />)}</ProfileSection>}
       <ProfileSection title="Updates Received">{updates.map(row => <SimpleRow key={row.id} left={row.title} right={row.horse_name} />)}</ProfileSection>
     </section>
   </div>;
